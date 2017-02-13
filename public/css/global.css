@@ -1,0 +1,67 @@
+/* Theme */
+.theme-base-ff .sidebar {
+  background-image: url("../images/stars.jpg");
+  background-size: cover;
+}
+
+.theme-base-ff .content a,
+.theme-base-ff .related-posts li a:hover {
+  color: #3B5C89;
+  text-decoration: none;
+}
+
+.sidebar a{
+    text-decoration: none;
+    color:#EEEEEE;
+}
+
+p {
+    font-size: 12pt;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-weight:300;
+}
+
+pre code {
+    font-size: 80%;
+}
+
+.sidebar-about h1 {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+h1 {
+  font-size: 1.9rem;
+}
+
+h2 {
+  margin-top: 1rem;
+  font-size: 1.3rem;
+}
+
+.lead {
+    font-size: 1rem;
+}
+
+.post-date {
+    font-size: 18px;
+    display: inline;
+    margin: auto;
+}
+
+.related-posts {
+    list-style-position: inside;
+    list-style-type:disc;
+}
+
+.related-posts li h3 {
+    font-size: 16px;
+}
+
+@media (max-width: 48em) {
+  .sidebar-nav-subitem {
+     display:none
+  }
+}

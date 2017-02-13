@@ -1,0 +1,54 @@
+---
+layout: page
+title: 标签
+---
+
+{% assign rawtags = "" %}
+{% for post in site.posts %}
+    {% assign ttags = post.tags | join:'|' | append:'|' %}
+    {% assign rawtags = rawtags | append:ttags %}
+{% endfor %}
+{% assign rawtags = rawtags | split:'|' | sort %}
+
+
+{% assign tags = "" %}
+{% for tag in rawtags %}
+    {% if tag != "" %}
+        {% if tags == "" %}
+            {% assign tags = tag | split:'|' %}
+        {% endif %}
+        {% unless tags contains tag %}
+            {% assign tags = tags | join:'|' | append:'|' | append:tag | split:'|' %}
+        {% endunless %}
+    {% endif %}
+{% endfor %}
+
+
+{% comment %}
+<div class="ui tag labels">
+    {% for tag in tags %}
+        <a class="ui label" href="#{{ tag | slugify }}"> {{ tag }} </a>
+    {% endfor %}
+</div>
+{% endcomment %}
+
+{% for tag in tags %}
+    <h3 id="{{ tag | slugify }}">{{ tag }}</h3>
+    <ul>
+     {% for post in site.posts %}
+         {% if post.tags contains tag %}
+         <li>
+             <p>
+                 <a href="{{ site.baseurl }}{{ post.url }}">
+                 {{ post.title }}
+                 <small>{{ post.date | date_to_string }}</small>
+             </a>&nbsp;
+                 {% for tag in post.tags %}
+                     <a href="#{{ tag | slugify }}"><span class="ui mini tag label" >{{ tag }}</span></a>
+                 {% endfor %}
+             </p>
+         </li>
+         {% endif %}
+     {% endfor %}
+    </ul>
+{% endfor %}

