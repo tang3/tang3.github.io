@@ -171,7 +171,7 @@ username=phpcms&password=123456%26username%3d%2527%2bunion%2bselect%2b%25272%252
 
 效果如下图所示：
 
-![1](/images/content/2015-07-21-poc.png)
+![1](/assets/images/2015-07/2015-07-21-poc.png)
 
 ## 0x04 总结
 

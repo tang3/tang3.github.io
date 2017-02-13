@@ -52,7 +52,7 @@ h2 {
 }
 
 .related-posts {
-    list-style-position: inside;
+    /*list-style-position: inside;*/
     list-style-type:disc;
 }
 
