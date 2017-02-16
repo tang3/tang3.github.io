@@ -5,12 +5,12 @@ highlighter:      rouge
 # Setup
 title:            奇门遁甲
 tagline:          '唐三的博客'
-url:              blog.tang3.org
+url:              www.tang3.org
 baseurl:  
 
 author:
   name:           '唐三'
-  url:            http://blog.tang3.org
+  url:            http://www.tang3.org
 
 paginate:         5
 
