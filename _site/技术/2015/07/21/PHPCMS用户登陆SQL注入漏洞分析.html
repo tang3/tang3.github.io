@@ -88,7 +88,7 @@
         <a class="sidebar-nav-item" href="/categories.html" >文章分类</a>
         <ul class="sidebar-nav-subitem">
             
-            <li><a href="/categories.html#读书">读书 <small>(3)</small></a>
+            <li><a href="/categories.html#读书">读书 <small>(4)</small></a>
             </li>
             
             <li><a href="/categories.html#随想">随想 <small>(5)</small></a>
@@ -119,11 +119,11 @@
          <span class="ui mini tag label" >sql注入</span>
       
   </p>
-  <h2 id="x00-">0x00 简述</h2>
+  <h2 id="0x00-简述">0x00 简述</h2>
 
 <p>之前manning在调漏洞的时候，突然发现正常登陆不上去了，当时帮忙跟了下phpcms的登陆流程。之后感觉这个流程貌似有些问题，就仔细看了下，没想到真是一个0day~~</p>
 
-<h2 id="x01-">0x01 漏洞原理</h2>
+<h2 id="0x01-漏洞原理">0x01 漏洞原理</h2>
 
 <p>我们先直接看这个漏洞最根源的地方，phpsso/index.php文件所有的操作都存在严重的注入问题，这个类文件的构造函数最先调用它的父构造函数，通过auth_key来解析POST传入的data内容，解析后data中的内容会作为注册、登陆、删除用户等操作的内容依据，而这些操作都会将这些数据作为数据库查询语句使用。这个问题其实在XXX的《PHPCMS V9 最新版本配置文件未授权访问读取》中已经体现出来了，不过他仅仅只是分析了信息泄露的问题，而忽略的他利用所使用的注入问题。</p>
 
@@ -131,7 +131,7 @@
 
 <p>我们以phpsso的login流程为例来看这个问题，先看phpsso的解析数据部分的代码：</p>
 
-<div class="highlighter-rouge"><pre class="highlight"><code>		if(isset($_POST['appid'])) {
+<div class="language-php highlighter-rouge"><pre class="highlight"><code>		if(isset($_POST['appid'])) {
 			$this-&gt;appid = intval($_POST['appid']);
 		} else {
 			exit('0');
@@ -147,7 +147,7 @@
 
 <p>在auth_key解码之后使用parse_str解析成数组格式，这段代码如果在php5.3之前的情况下是没有问题的，因为默认情况下parse_str会启动gpc机制对特殊字符进行转义。但是在php5.3之后gpc机制默认就关闭掉了，这就导致如果解析出来的内容如果带有单引号这类个特殊字符，就原封不动的放到的变量中，这导致了注入的风险。下面我们简单来看一下login行为的代码：</p>
 
-<div class="highlighter-rouge"><pre class="highlight"><code>	public function login() {
+<div class="language-php highlighter-rouge"><pre class="highlight"><code>	public function login() {
 		$this-&gt;password = isset($this-&gt;data['password']) ? $this-&gt;data['password'] : '';
 		$this-&gt;email = isset($this-&gt;data['email']) ? $this-&gt;data['email'] : '';
 		if($this-&gt;email) {
@@ -179,7 +179,7 @@
 
 <p>说了这么多，终于可以开始入正题了。我们来跟一下登陆的流程，先看member/index.php文件中的login方法:</p>
 
-<div class="highlighter-rouge"><pre class="highlight"><code>			$username = isset($_POST['username']) <span class="err">&amp;&amp;</span> is_username($_POST['username']) ? trim($_POST['username']) : showmessage(L('username_empty'), HTTP_REFERER);
+<div class="language-php highlighter-rouge"><pre class="highlight"><code>			$username = isset($_POST['username']) <span class="err">&amp;&amp;</span> is_username($_POST['username']) ? trim($_POST['username']) : showmessage(L('username_empty'), HTTP_REFERER);
 			$password = isset($_POST['password']) <span class="err">&amp;&amp;</span> trim($_POST['password']) ? trim($_POST['password']) : showmessage(L('password_empty'), HTTP_REFERER);
 			$cookietime = intval($_POST['cookietime']);
 			$synloginstr = ''; //同步登陆js代码
@@ -195,7 +195,7 @@
 
 <p>下面我们继续来看ps_member_login这个方法的代码：</p>
 
-<div class="highlighter-rouge"><pre class="highlight"><code>public function ps_member_login($username, $password, $isemail=0) {
+<div class="language-php highlighter-rouge"><pre class="highlight"><code>public function ps_member_login($username, $password, $isemail=0) {
 		if($isemail) {
 			if(!$this-&gt;_is_email($username)) {
 				return -3;
@@ -219,7 +219,7 @@ private function _ps_send($action, $data = null) {
 
 <p>我们在这里简单总结下漏洞原因，首先member的login没有对password做过滤便带入到phpsso的login中进行验证，然后phpsso没有对于解码数据进行过滤，从而导致SQL注入。</p>
 
-<h2 id="x02-">0x02 漏洞利用</h2>
+<h2 id="0x02-漏洞利用">0x02 漏洞利用</h2>
 
 <p>password字段如果存在特殊字符，在传入到程序时仍然会被转义，而且在phpsso的login中使用的是username做数据库查询，而不是password。</p>
 
@@ -227,7 +227,7 @@ private function _ps_send($action, $data = null) {
 
 <p>第二个问题也用到parse_str的功能，parse_str在解析“username=123&amp;password=456”这样的字符串，会把它解析为：</p>
 
-<div class="highlighter-rouge"><pre class="highlight"><code>Array(
+<div class="language-php highlighter-rouge"><pre class="highlight"><code>Array(
     username=&gt;123,
     password=&gt;456
 )
@@ -236,7 +236,7 @@ private function _ps_send($action, $data = null) {
 
 <p>那么如果被解析字符串变成“usernamen=123&amp;password=456&amp;username=789”，他就会被解析为：</p>
 
-<div class="highlighter-rouge"><pre class="highlight"><code>Array(
+<div class="language-php highlighter-rouge"><pre class="highlight"><code>Array(
     username=&gt;789,
     password=&gt;456
 }
@@ -249,7 +249,7 @@ private function _ps_send($action, $data = null) {
 </code></pre>
 </div>
 
-<h2 id="x03-">0x03 进阶利用</h2>
+<h2 id="0x03-进阶利用">0x03 进阶利用</h2>
 
 <p>按照上一小节的步骤我们可以获得到一个盲注点，但是感觉有些鸡肋。不过当我再回头看member的login流程的最后一步时，想到了一个有趣的进阶利用方法，就是利用注入来构造注入，我个这种方法起名字叫注入接力（和二次注入稍有不同）。</p>
 
@@ -257,7 +257,7 @@ private function _ps_send($action, $data = null) {
 
 <p>不过这里有一个地方需要注意，就是在/phpsso_server/phpcms/modules/phpsso/index.php的login中结尾会使用uid更新登陆信息，所以为了可以实现在member的login中注入不能把注入语句写到uid中。</p>
 
-<div class="highlighter-rouge"><pre class="highlight"><code>		if(!empty($userinfo) <span class="err">&amp;&amp;</span> $userinfo['password'] == create_password($this-&gt;password, $userinfo['random'])) {
+<div class="language-php highlighter-rouge"><pre class="highlight"><code>		if(!empty($userinfo) <span class="err">&amp;&amp;</span> $userinfo['password'] == create_password($this-&gt;password, $userinfo['random'])) {
 			//登录成功更新用户最近登录时间和ip
 			$this-&gt;db-&gt;update(array('lastdate'=&gt;SYS_TIME, 'lastip'=&gt;ip()), array('uid'=&gt;$userinfo['uid']));
 			exit(serialize($userinfo));
@@ -285,17 +285,17 @@ username=phpcms&amp;password=123456%26username%3d%2527%2bunion%2bselect%2b%25272
 
 <p><img src="/assets/images/2015-07/2015-07-21-poc.png" alt="1" /></p>
 
-<h2 id="x04-">0x04 总结</h2>
+<h2 id="0x04-总结">0x04 总结</h2>
 
 <p>这个漏洞分析中，最大的收获是用到漏洞接力这种利用思路来完成由盲注到可报错注入的华丽转身。</p>
 
-<h3 id="section">漏洞小结</h3>
+<h3 id="漏洞小结">漏洞小结</h3>
 
 <p>影响范围个人评价为“高”，PHPCMS在国内的使用范围非常广，而且此漏洞影响PHPCMS目前主流的V9版本，虽然收到PHP的版本影响，但是目前大多数的服务都已经开始更换PHP版本，所以影响范围还是很广的。</p>
 
 <p>危害性个人评价为“高”，此漏洞只需要可以访问目标网站便可以实现攻击，获取数据库信息，并有很大的可能getshell。</p>
 
-<h3 id="section-1">防护方案</h3>
+<h3 id="防护方案">防护方案</h3>
 
 <p>针对phpsso模块添加过滤代码，最好的方式应该是将转义和过滤放在数据库操作的前一步，这样可以极有效缓解SQL注入带来的问题。</p>
 
@@ -305,6 +305,15 @@ username=phpcms&amp;password=123456%26username%3d%2527%2bunion%2bselect%2b%25272
   <h2>相关文章:</h2>
   <ul class="related-posts">
     
+    
+      <li>
+        <h3>
+          <a href="/%E8%AF%BB%E4%B9%A6/2017/03/01/%E8%AF%BB-%E5%8D%83%E5%B9%B4%E6%82%96%E8%AE%BA-%E5%BC%A0%E5%AE%8F%E6%9D%B0%E8%AF%BB%E5%8F%B2%E4%B8%8E%E8%AE%BA%E4%BA%BA-%E6%9C%89%E6%84%9F.html">
+            读《千年悖论——张宏杰读史与论人》有感
+            <small>01 Mar 2017</small>
+          </a>
+        </h3>
+      </li>
     
       <li>
         <h3>
@@ -320,15 +329,6 @@ username=phpcms&amp;password=123456%26username%3d%2527%2bunion%2bselect%2b%25272
           <a href="/%E8%AF%BB%E4%B9%A6/2015/04/26/%E7%A4%BE%E4%BA%A4%E7%BD%91%E7%BB%9C%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88-%E5%A4%B1%E6%8E%A7-%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0%E4%B8%80.html">
             社交网络需要什么？——《失控》读书笔记一
             <small>26 Apr 2015</small>
-          </a>
-        </h3>
-      </li>
-    
-      <li>
-        <h3>
-          <a href="/%E6%8A%80%E6%9C%AF/2015/03/06/ElasticSearch+%E8%BF%9C%E7%A8%8B%E4%BB%A3%E7%A0%81%E6%89%A7%E8%A1%8C%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90-CVE-2015-1427.html">
-            ElasticSearch 远程代码执行漏洞分析（CVE-2015-1427）&amp;高级利用方法
-            <small>06 Mar 2015</small>
           </a>
         </h3>
       </li>
