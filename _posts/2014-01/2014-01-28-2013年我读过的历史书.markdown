@@ -2,6 +2,7 @@
 layout: post
 title: "2013年我读过的历史书"
 date: 2014-01-28 02:04:34 +0800
+author: tang3
 comments: true
 categories: 读书
 ---

@@ -2,6 +2,7 @@
 layout: post
 title: "别丢弃你的求知欲"
 date: 2014-02-16 21:20:36 +0800
+author: tang3
 comments: true
 categories: 随想
 ---

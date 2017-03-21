@@ -1,7 +1,8 @@
 ---
 layout: post
 title: "PHPCMS用户登陆SQL注入漏洞分析"
-date: 2015-07-21 11:26:23 +0800
+date: 2015-07-21 11:26:23 +080
+author: tang3
 comments: true
 categories: 技术
 tags: [phpcms,sql注入] 

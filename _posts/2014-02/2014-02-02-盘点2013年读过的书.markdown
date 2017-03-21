@@ -2,6 +2,7 @@
 layout: post
 title: "盘点2013年读过的书"
 date: 2014-02-02 20:46:19 +0800
+author: tang3
 comments: true
 categories: 读书
 ---

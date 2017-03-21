@@ -2,6 +2,7 @@
 layout: post
 title: "Dedecms buy_action.php SQL注入漏洞分析"
 date: 2014-03-04 21:26:50 +0800
+author: tang3
 comments: true
 categories: 技术
 ---

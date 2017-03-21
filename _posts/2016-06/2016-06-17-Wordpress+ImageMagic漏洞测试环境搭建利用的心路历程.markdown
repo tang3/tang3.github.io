@@ -2,6 +2,7 @@
 layout: post
 title: "Wordpress ImageMagic漏洞测试环境搭建&amp;利用的心路历程"
 date: 2016-06-17 17:33:02 +0800
+author: tang3
 comments: true
 categories: 技术
 tags: [Web漏洞]

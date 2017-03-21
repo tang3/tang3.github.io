@@ -2,6 +2,7 @@
 layout: post
 title: "社交网络需要什么？——《失控》读书笔记一"
 date: 2015-04-26 13:21:59 +0800
+author: tang3
 comments: true
 categories: 读书
 tags: [《失控》,社交网络]

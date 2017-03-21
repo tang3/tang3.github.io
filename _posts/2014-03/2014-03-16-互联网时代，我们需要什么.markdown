@@ -2,6 +2,7 @@
 layout: post
 title: "互联网时代，我们需要什么"
 date: 2014-03-16 10:29:26 +0800
+author: tang3
 comments: true
 categories: 随想
 ---

@@ -2,6 +2,7 @@
 layout: post
 title: "读《千年悖论——张宏杰读史与论人》有感"
 date: 2017-03-01 02:04:34 +0800
+author: tang3
 comments: true
 categories: 读书
 ---
