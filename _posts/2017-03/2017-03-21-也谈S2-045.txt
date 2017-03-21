@@ -118,15 +118,15 @@ private <T> Object compileAndExecute(String expression, Map<String, Object> cont
 
 ```
 
-首先通过expressions.get(expression)来尝试解析表达式，如果表达式只是单跳语句，那么tree变量就必然非空，否则tree变量为空需要经过checkEnableEvalExpression方法检验。通过上面compare的图，可以看出这个流程多了一个isSequence方法，这个方法判断OnglContext中的语句是否为队列（多条语句），如果是那么返回false。也就是说，如果经过OgnlUtil类getvalue方法的ognl表达式是多语句形式的，那么一定会拒绝执行。
+首先通过expressions.get(expression)来尝试解析表达式，如果表达式只是单条语句，那么tree变量就必然非空，否则tree变量为空需要经过checkEnableEvalExpression方法检验。通过上面compare的图，可以看出这个流程多了一个isSequence方法，这个方法判断OnglContext中的语句是否为队列（多条语句），如果是那么返回false。也就是说，如果经过OgnlUtil类getvalue方法的ognl表达式是多语句形式的，那么一定会拒绝执行。
 
-而网上流传的这段PoC对防护有着惊艳的表现，它通过使用Ognl提供的子表达式的语法，讲多条语句合成了一条语句，完美bypass掉了if(tree == null)中的校验。
+而网上流传的这段PoC对防护有着惊艳的表现，它通过使用Ognl提供的子表达式的语法，将多条语句合成了一条语句，完美bypass掉了if(tree == null)中的校验。
 
 ![subexpression](/assets/images/2017-03/subexpression.png)
 
 ## 0x03 总结
 
-关于FileUploadInterceptor我也多次有跟踪，想从其中找到可以利用点，不过却忽略了JakartaMultiPartRequest中的调试，与一个历史级的漏洞失之交臂，惋惜至极。漏洞的挖掘就是需要一个死角也不放过的较真，否则也就像我这样空叹曾经路过。。。
+关于FileUploadInterceptor我也多次有跟踪，想从其中找到利用点，不过却忽略了JakartaMultiPartRequest中的调试，与一个历史级的漏洞失之交臂，惋惜至极。漏洞的挖掘就是需要一个死角也不放过的较真，否则也就像我这样空叹曾经路过。。。
 
 安恒的小哥能发现这个漏洞也是必然，毕竟他对于Struts的每个更新版本和细节都会认真研究（就像S2-032这个原先没有漏洞，后来版本更新导致的漏洞），我这样的懒人在他面前实在是汗颜。哦，对了，还有他的这个PoC实现思路实在是让我叹为观止，我是服了~~
 
