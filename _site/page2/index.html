@@ -98,7 +98,7 @@
             <li><a href="/categories.html#随想">随想 <small>(5)</small></a>
             </li>
             
-            <li><a href="/categories.html#技术">技术 <small>(6)</small></a>
+            <li><a href="/categories.html#技术">技术 <small>(9)</small></a>
             </li>
             
             <li><a href="/categories.html#no-category">未分类</a>
@@ -112,6 +112,53 @@
 
     <div class="content container">
       <div class="posts">
+  
+  <div class="post">
+    <h1 class="post-title">
+      <a href="/%E6%8A%80%E6%9C%AF/2016/06/17/Wordpress+ImageMagic%E6%BC%8F%E6%B4%9E%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E5%88%A9%E7%94%A8%E7%9A%84%E5%BF%83%E8%B7%AF%E5%8E%86%E7%A8%8B.html">
+        Wordpress ImageMagic漏洞测试环境搭建&amp;利用的心路历程
+      </a>
+    </h1>
+
+    <span class="post-date">17 Jun 2016 by <a href=#>tang3</a></span>
+
+    <p>最近工作上的原因需要搭建一个Wordpress的ImageMagic漏洞环境，搭建过程中遇到了一些头疼的问题，以及对于利用方法的一些思考，在这里总结一下。</p>
+
+<h2 id="环境搭建">环境搭建</h2>
+
+<p>我使用的是Ubuntu14.04 64位版，使用Ngnix+php5fmp+mysql搭建，Wordpress版本选择的是4.5.1。服务配置这里没什么说的，我们直接来看搭
+  </div>
+  
+  <div class="post">
+    <h1 class="post-title">
+      <a href="/%E6%8A%80%E6%9C%AF/2015/07/21/PHPCMS%E7%94%A8%E6%88%B7%E7%99%BB%E9%99%86SQL%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.html">
+        PHPCMS用户登陆SQL注入漏洞分析
+      </a>
+    </h1>
+
+    <span class="post-date">21 Jul 2015 by <a href=#>tang3</a></span>
+
+    <h2 id="0x00-简述">0x00 简述</h2>
+
+<p>之前manning在调漏洞的时候，突然发现正常登陆不上去了，当时帮忙跟了下phpcms的登陆流程。之后感觉这个流程貌似有些问题，就仔细看了下，没想到真是一个0day~~</p>
+
+<h2 id="0x01-漏洞原理">0x01 漏洞原理</h2>
+
+<p>我们先直接看这个漏洞最根源的地方，phpsso/index.php文件所有的
+  </div>
+  
+  <div class="post">
+    <h1 class="post-title">
+      <a href="/%E8%AF%BB%E4%B9%A6/2015/04/26/%E7%A4%BE%E4%BA%A4%E7%BD%91%E7%BB%9C%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88-%E5%A4%B1%E6%8E%A7-%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0%E4%B8%80.html">
+        社交网络需要什么？——《失控》读书笔记一
+      </a>
+    </h1>
+
+    <span class="post-date">26 Apr 2015 by <a href=#>tang3</a></span>
+
+    <blockquote>
+  <p>网络逻辑是违反直觉的。比如说，你要铺设连接一些城市的电话电缆。以堪萨斯城、圣地亚哥和西雅图这三个城市为例，链接这三座城市的电话总长为三千英里。根据常识，如果要在电话网络中加上第四个城市，那么电话下的总长度就必然将增加。然而，网络逻辑给出的答案截然相反。如果将第四个城市作为中心（让我们以盐湖城为例），其他城市通过盐湖城相连，电缆总厂就可以减少2850英里，比原来的
+  </div>
   
   <div class="post">
     <h1 class="post-title">
@@ -141,53 +188,6 @@
     <p><img src="http://ww1.sinaimg.cn/large/3f18819bjw1ejmey1uqajj20a209zq3f.jpg" alt="1" /></p>
 
 <p>经常会听到某些偏瘦的人在炫耀一些他们这种长不胖的特质，并以此为傲。也许胖子们天生喜欢自嘲的性格使他们滋生了这种莫名的优越感，写这篇文章并不想去矫情胖子好还是瘦子好，只是单纯的想<strong>从身材和健身
-  </div>
-  
-  <div class="post">
-    <h1 class="post-title">
-      <a href="/%E6%8A%80%E6%9C%AF/2014/07/26/Spring%E6%A1%86%E6%9E%B6%E8%BF%9C%E7%A8%8B%E4%BB%A3%E7%A0%81%E6%89%A7%E8%A1%8C.html">
-        Spring框架远程代码执行
-      </a>
-    </h1>
-
-    <span class="post-date">26 Jul 2014 by <a href=#>tang3</a></span>
-
-    <h3 id="0x01-概述">0x01 概述</h3>
-
-<p>2012年12月国外研究者DanAmodio发表《Remote Code with Expression Language Injection》一文，指出Spring框架存在潜在的代码注入风险。在2013年1月，国内安全研究人员在微博上分享了该篇文章的中文翻译内容。</p>
-
-<p>文章中指出Spring框架3.0.6以下版本，在
-  </div>
-  
-  <div class="post">
-    <h1 class="post-title">
-      <a href="/%E9%9A%8F%E6%83%B3/2014/03/16/%E4%BA%92%E8%81%94%E7%BD%91%E6%97%B6%E4%BB%A3-%E6%88%91%E4%BB%AC%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88.html">
-        互联网时代，我们需要什么
-      </a>
-    </h1>
-
-    <span class="post-date">16 Mar 2014 by <a href=#>tang3</a></span>
-
-    <p><img src="http://ww3.sinaimg.cn/large/3f18819bgw1eehh01b0c6j20vg0fnq8n.jpg" alt="1" /></p>
-
-<p>无论我们用不用电脑，上不上网，或者承不承认，我们现在的生活已经实实在在的处在了互联网时代。</p>
-
-<p>对于互联网时代，我按照自己的体验以及身边人的行为，将它分为了三个阶段，分别是：启蒙阶段，爆炸阶段
-  </div>
-  
-  <div class="post">
-    <h1 class="post-title">
-      <a href="/%E6%8A%80%E6%9C%AF/2014/03/04/Dedecms-buy_action.php-SQL%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.html">
-        Dedecms buy_action.php SQL注入漏洞分析
-      </a>
-    </h1>
-
-    <span class="post-date">04 Mar 2014 by <a href=#>tang3</a></span>
-
-    <p>#0x01 补丁对比
-通过对比源码和2月25日补丁发现被改动的文件有三个，buy_action.php、uploadsafe.inc.php和sys_info.htm。</p>
-
-<p>sys_info.htm只是添加了一个重置cfg_cookie_encode的代码，而且是静态文件，可以忽略掉。uploadsafe.inc.php是另外一个注入漏洞的修补,所以只剩下buy_action.p
   </div>
   
 </div>

